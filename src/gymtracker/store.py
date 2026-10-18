@@ -13,9 +13,9 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 
-from gymtracker.session import Record, Summary
+from gymtracker.session import Record, Summary, held_min_speed
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 _MIGRATIONS = {
     1: """
@@ -54,7 +54,21 @@ _MIGRATIONS = {
         PRIMARY KEY (workout_id, t_s)
     ) WITHOUT ROWID;
     """,
+    2: "ALTER TABLE workouts ADD COLUMN min_speed_mps REAL;",
 }
+
+
+def _backfill_min_speed(db: sqlite3.Connection) -> None:
+    for (workout_id,) in db.execute("SELECT id FROM workouts").fetchall():
+        rows = db.execute("SELECT t_s, speed_mps, paused FROM samples WHERE workout_id = ? "
+                          "ORDER BY t_s", (workout_id,))
+        records = [Record(t_s=t, speed_mps=v, paused=bool(p)) for t, v, p in rows]
+        db.execute("UPDATE workouts SET min_speed_mps = ? WHERE id = ?",
+                   (held_min_speed(records), workout_id))
+
+
+# Python steps that run after a migration's SQL, in the same transaction.
+_BACKFILLS = {2: _backfill_min_speed}
 
 _SUMMARY_FIELDS = [f.name for f in dataclasses.fields(Summary)]
 _META_FIELDS = ["utc_offset_min", "source", "devices", "notes", "archive", "created_utc"]
@@ -117,8 +131,12 @@ class Store:
             raise RuntimeError(f"{self.path} has schema {version}, newer than this code "
                                f"({SCHEMA_VERSION})")
         for v in range(version + 1, SCHEMA_VERSION + 1):
-            with self.db:
-                self.db.executescript(_MIGRATIONS[v])
+            with self.db:  # one transaction per version (executescript would commit early)
+                for statement in _MIGRATIONS[v].split(";"):
+                    if statement.strip():
+                        self.db.execute(statement)
+                if v in _BACKFILLS:
+                    _BACKFILLS[v](self.db)
                 self.db.execute(f"PRAGMA user_version = {v}")
 
     # ------------------------------------------------------------------ writes

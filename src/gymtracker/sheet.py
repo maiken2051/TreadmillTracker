@@ -47,6 +47,10 @@ def _days(seconds: float | None) -> float | None:
     return None if seconds is None else seconds / _DAY_S
 
 
+def _speed(mps: float | None, u: _Units) -> float | None:
+    return None if mps is None else mps * 3600 * u.m_to_dist
+
+
 def _pace_days(distance_m: float, moving_s: float, u: _Units) -> float | None:
     dist = distance_m * u.m_to_dist
     return _days(moving_s / dist) if dist > 0 and moving_s > 0 else None
@@ -64,7 +68,9 @@ def build_workbook(workouts: Iterable[Workout], unit_system: str = "imperial") -
         ("Moving", 10, "[h]:mm:ss"),
         (f"Distance ({u.dist})", 13, "0.00"),
         (f"Pace ({u.pace})", 13, "mm:ss"),
+        (f"Min speed ({u.speed})", 16, "0.0"),
         (f"Avg speed ({u.speed})", 16, "0.0"),
+        (f"Max speed ({u.speed})", 16, "0.0"),
         ("Avg HR", 9, "0"),
         ("Max HR", 9, "0"),
         ("Min HR", 9, "0"),
@@ -75,10 +81,10 @@ def build_workbook(workouts: Iterable[Workout], unit_system: str = "imperial") -
     for w in workouts:
         s = w.summary
         start = w.start_local
-        speed = None if s.avg_speed_mps is None else s.avg_speed_mps * 3600 * u.m_to_dist
         ws.append([
             start.date(), start.time().replace(tzinfo=None), _days(s.moving_s),
-            s.distance_m * u.m_to_dist, _pace_days(s.distance_m, s.moving_s, u), speed,
+            s.distance_m * u.m_to_dist, _pace_days(s.distance_m, s.moving_s, u),
+            _speed(s.min_speed_mps, u), _speed(s.avg_speed_mps, u), _speed(s.max_speed_mps, u),
             s.avg_hr, s.max_hr, s.min_hr, w.source, w.notes,
         ])
     _formats(ws, columns)

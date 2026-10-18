@@ -4,7 +4,7 @@ import pytest
 
 from gymtracker.ble.hrm import HrSample
 from gymtracker.ble.treadmill import InclineSample, TreadmillSample
-from gymtracker.session import Session
+from gymtracker.session import MIN_SPEED_FLOOR_MPS, Record, Session, held_min_speed
 
 
 def tm(elapsed, speed, dist, kcal=0):
@@ -111,3 +111,41 @@ def test_checkpoint_round_trip(tmp_path):
 def test_checkpoint_version_checked():
     with pytest.raises(ValueError):
         Session.from_dict({"version": 99})
+
+
+def _speeds(*segments, paused_at=()):
+    """segments: (seconds, m/s) in order -> 1 Hz records."""
+    out, t = [], 0
+    for seconds, v in segments:
+        for _ in range(seconds):
+            out.append(Record(t, speed_mps=v, paused=t in paused_at))
+            t += 1
+    return out
+
+
+def test_min_speed_is_lowest_held_for_a_minute():
+    ramp = [(5, 0.3), (5, 0.6), (10, 0.95)]  # start ramp passes 2.1 mph briefly
+    recs = _speeds(*ramp, (120, 1.2), (60, 1.0), (59, 0.95), (120, 1.3))
+    assert held_min_speed(recs) == pytest.approx(1.0)
+
+
+def test_min_speed_ignores_below_two_mph():
+    recs = _speeds((300, 0.8), (120, 1.1))  # 0.8 m/s = 1.8 mph, held for 5 minutes
+    assert 0.8 < MIN_SPEED_FLOOR_MPS
+    assert held_min_speed(recs) == pytest.approx(1.1)
+
+
+def test_min_speed_counts_console_two_mph():
+    assert held_min_speed(_speeds((60, 321 / 360))) == pytest.approx(321 / 360)  # 2.0 mph
+
+
+def test_min_speed_runs_broken_by_pauses_and_gaps():
+    recs = _speeds((40, 1.0), (40, 1.0), (60, 1.5), paused_at=range(40, 41))
+    assert held_min_speed(recs) == pytest.approx(1.5)
+    gap = _speeds((40, 1.0)) + [Record(t + 45, speed_mps=1.0) for t in range(40)]
+    assert held_min_speed(gap) is None
+
+
+def test_min_speed_none_for_short_or_slow_workouts():
+    assert held_min_speed(_speeds((59, 1.2))) is None
+    assert held_min_speed([]) is None

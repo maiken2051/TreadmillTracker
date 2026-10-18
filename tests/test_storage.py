@@ -82,6 +82,23 @@ def test_store_reopens_and_snapshots(tmp_path):
         assert len(st.list()) == 1
 
 
+def test_migration_from_schema_1_backfills_min_speed(tmp_path):
+    import sqlite3
+
+    from gymtracker import store as store_mod
+    w, records = make_workout(n=200)
+    with Store(tmp_path / "db.sqlite") as st:
+        wid = st.save(w, records)
+    db = sqlite3.connect(tmp_path / "db.sqlite")  # turn it back into a schema 1 database
+    db.execute("ALTER TABLE workouts DROP COLUMN min_speed_mps")
+    db.execute("PRAGMA user_version = 1")
+    db.commit()
+    db.close()
+    with Store(tmp_path / "db.sqlite") as st:
+        assert st.db.execute("PRAGMA user_version").fetchone()[0] == store_mod.SCHEMA_VERSION
+        assert st.get(wid).summary.min_speed_mps == pytest.approx(1.2)
+
+
 def test_store_refuses_newer_schema(tmp_path):
     with Store(tmp_path / "db.sqlite") as st:
         st.db.execute("PRAGMA user_version = 99")
@@ -116,6 +133,17 @@ def test_archive_never_overwrites(tmp_path):
     assert len({first, second, third}) == 3
     assert second.name.endswith("_treadmill-2.json.gz")
     assert third.name.endswith("_treadmill-3.json.gz")
+
+
+def test_archive_without_min_speed_recomputes_it(tmp_path):
+    w, records = make_workout(n=200)
+    path = write_archive(tmp_path, w, records)
+    with gzip.open(path, "rt") as f:
+        doc = json.load(f)
+    del doc["workout"]["summary"]["min_speed_mps"]
+    with gzip.open(path, "wt") as f:
+        json.dump(doc, f)
+    assert read_archive(path).workout.summary.min_speed_mps == pytest.approx(1.2)
 
 
 def test_archive_rejects_other_files(tmp_path):
@@ -197,7 +225,8 @@ def test_workbook_rows_and_units(tmp_path):
     ws = wb["Workouts"]
     header = [c.value for c in ws[1]]
     assert header == ["Date", "Start", "Moving", "Distance (mi)", "Pace (min/mi)",
-                      "Avg speed (mph)", "Avg HR", "Max HR", "Min HR", "Source", "Notes"]
+                      "Min speed (mph)", "Avg speed (mph)", "Max speed (mph)", "Avg HR",
+                      "Max HR", "Min HR", "Source", "Notes"]
     rows = list(ws.iter_rows(min_row=2, values_only=True))
     assert len(rows) == 2
     first = dict(zip(header, rows[0], strict=True))
@@ -207,6 +236,8 @@ def test_workbook_rows_and_units(tmp_path):
     calib = dict(zip(header, rows[1], strict=True))
     assert round(calib["Distance (mi)"], 2) == 0.26
     assert round(calib["Moving"].total_seconds()) == 308  # a real Excel duration
+    # calibration walk: 2.0 mph (68 s), 3.0 (116 s), 4.0 (60 s)
+    assert (round(calib["Min speed (mph)"], 1), round(calib["Max speed (mph)"], 1)) == (2.0, 4.0)
     monthly = list(wb["Monthly"].iter_rows(min_row=2, values_only=True))
     assert [m[1] for m in monthly] == [1, 1]  # Oct 2025, Oct 2026
 

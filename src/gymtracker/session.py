@@ -19,6 +19,12 @@ from gymtracker.ble.treadmill import InclineSample, TreadmillSample
 
 STALE_S = 5.0
 CHECKPOINT_VERSION = 1
+# "Min speed" is the lowest speed held for MIN_SPEED_HOLD_S, ignoring anything under
+# MIN_SPEED_FLOOR_MPS; a plain minimum is just the belt ramping up (user, 2026-10-18).
+MIN_SPEED_HOLD_S = 60
+# 2 mph less half a 0.1 mph step: the console sends 2.0 mph as 3.21 km/h, a hair under.
+MIN_SPEED_FLOOR_MPS = 1.95 * 1609.344 / 3600
+_SPEED_BIN_MPS = 0.02  # finer than one treadmill step (0.1 mph = 0.045 m/s)
 
 
 @dataclass
@@ -48,6 +54,29 @@ class Summary:
     max_hr: int | None
     min_hr: int | None
     pause_count: int
+    min_speed_mps: float | None = None  # added in schema 2; see held_min_speed()
+
+
+def held_min_speed(records: list[Record]) -> float | None:
+    """The lowest speed of at least MIN_SPEED_FLOOR_MPS kept for MIN_SPEED_HOLD_S
+    consecutive moving seconds, or None."""
+    best = None
+    run: list[float] = []
+    prev_t = None
+    for r in records:
+        v = r.speed_mps
+        if (run and v is not None and prev_t == r.t_s - 1 and not r.paused
+                and round(v / _SPEED_BIN_MPS) == round(run[0] / _SPEED_BIN_MPS)):
+            run.append(v)
+        elif v is not None and v >= MIN_SPEED_FLOOR_MPS - 1e-9 and not r.paused:
+            run = [v]
+        else:
+            run = []
+        prev_t = r.t_s
+        if len(run) >= MIN_SPEED_HOLD_S:
+            speed = sum(run) / len(run)
+            best = speed if best is None else min(best, speed)
+    return best
 
 
 def summarize(start_t: float, end_t: float, records: list[Record], *,
@@ -82,6 +111,7 @@ def summarize(start_t: float, end_t: float, records: list[Record], *,
         max_hr=max(hrs) if hrs else None,
         min_hr=min(hrs) if hrs else None,
         pause_count=pause_count,
+        min_speed_mps=held_min_speed(records),
     )
 
 

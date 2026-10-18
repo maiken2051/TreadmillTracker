@@ -14,7 +14,7 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from gymtracker.session import Record, Summary
+from gymtracker.session import Record, Summary, held_min_speed
 from gymtracker.store import Workout
 
 FORMAT_VERSION = 1
@@ -72,11 +72,14 @@ def read_archive(path: str | Path) -> Archived:
     if doc.get("format") != "gymtracker-workout" or doc.get("version") != FORMAT_VERSION:
         raise ValueError(f"{path}: not a version {FORMAT_VERSION} workout archive")
     w = doc["workout"]
-    workout = Workout(summary=Summary(**w["summary"]), utc_offset_min=w["utc_offset_min"],
-                      source=w["source"], devices=w["devices"], notes=w["notes"],
-                      created_utc=w["created_utc"])
     fields = doc["record_fields"]
     records = [Record(**dict(zip(fields, row, strict=True))) for row in doc["records"]]
+    summary = Summary(**w["summary"])
+    if "min_speed_mps" not in w["summary"]:  # written before schema 2
+        summary.min_speed_mps = held_min_speed(records)
+    workout = Workout(summary=summary, utc_offset_min=w["utc_offset_min"],
+                      source=w["source"], devices=w["devices"], notes=w["notes"],
+                      created_utc=w["created_utc"])
     return Archived(workout, records, doc["raw"])
 
 
