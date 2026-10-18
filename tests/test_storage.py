@@ -225,14 +225,14 @@ def test_workbook_rows_and_units(tmp_path):
     ws = wb["Workouts"]
     header = [c.value for c in ws[1]]
     assert header == ["Date", "Start", "Moving", "Distance (mi)", "Pace (min/mi)",
-                      "Min speed (mph)", "Avg speed (mph)", "Max speed (mph)", "Avg HR",
-                      "Max HR", "Min HR", "Source", "Notes"]
+                      "Min speed (mph)", "Avg speed (mph)", "Max speed (mph)", "Min HR",
+                      "Avg HR", "Max HR", "Notes"]
     rows = list(ws.iter_rows(min_row=2, values_only=True))
     assert len(rows) == 2
     first = dict(zip(header, rows[0], strict=True))
     assert first["Start"] == time(20, 22, 55)
     assert first["Distance (mi)"] == pytest.approx(1.2 * 599 / 1609.344)
-    assert first["Avg HR"] is not None and first["Source"] == "pi"
+    assert first["Min HR"] <= first["Avg HR"] <= first["Max HR"]
     calib = dict(zip(header, rows[1], strict=True))
     assert round(calib["Distance (mi)"], 2) == 0.26
     assert round(calib["Moving"].total_seconds()) == 308  # a real Excel duration

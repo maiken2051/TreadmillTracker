@@ -3,9 +3,9 @@
 Two tabs: Workouts (one row per workout) and Monthly (totals per month). Values are real
 Excel dates, times and numbers, so they sort, filter and chart in Excel.
 
-Kept short on purpose (user, 2026-10-18): no wall-clock duration, incline, ascent, pauses or
-calories. All of those are still in the database and archive, so a column can come back by
-adding it here.
+Kept short on purpose (user, 2026-10-18): no wall-clock duration, incline, ascent, pauses,
+calories or source (new workouts all come from the tracker). All of those are still in the
+database and archive, so a column can come back by adding it here.
 """
 
 from __future__ import annotations
@@ -71,10 +71,9 @@ def build_workbook(workouts: Iterable[Workout], unit_system: str = "imperial") -
         (f"Min speed ({u.speed})", 16, "0.0"),
         (f"Avg speed ({u.speed})", 16, "0.0"),
         (f"Max speed ({u.speed})", 16, "0.0"),
+        ("Min HR", 9, "0"),
         ("Avg HR", 9, "0"),
         ("Max HR", 9, "0"),
-        ("Min HR", 9, "0"),
-        ("Source", 18, "@"),
         ("Notes", 40, "@"),
     ]
     _header(ws, columns)
@@ -85,7 +84,7 @@ def build_workbook(workouts: Iterable[Workout], unit_system: str = "imperial") -
             start.date(), start.time().replace(tzinfo=None), _days(s.moving_s),
             s.distance_m * u.m_to_dist, _pace_days(s.distance_m, s.moving_s, u),
             _speed(s.min_speed_mps, u), _speed(s.avg_speed_mps, u), _speed(s.max_speed_mps, u),
-            s.avg_hr, s.max_hr, s.min_hr, w.source, w.notes,
+            s.min_hr, s.avg_hr, s.max_hr, w.notes,
         ])
     _formats(ws, columns)
 
