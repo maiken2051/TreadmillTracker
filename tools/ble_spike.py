@@ -270,7 +270,7 @@ async def cmd_dump(args: argparse.Namespace) -> int:
         tasks = [dump_one(t, devices[t], args, out, out_path, asyncio.Event(), connect_lock)
                  for t in present]
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        for target, result in zip(present, results):
+        for target, result in zip(present, results, strict=True):
             if isinstance(result, BaseException):
                 log(f"[{target}] FAILED: {type(result).__name__}: {result}")
     finally:

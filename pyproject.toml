@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gymtracker"
+version = "0.1.0"
+description = "Record treadmill workouts (TRUE vendor BLE protocol) and heart rate (BLE HRS) on a Raspberry Pi"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "Michael Newcomb", email = "uud@miken.com" }]
+dependencies = [
+    "bleak>=3.0.2",
+    "aiohttp>=3.14.5",
+    "openpyxl>=3.1.5",
+]
+
+[project.optional-dependencies]
+fit = [
+    "fit-tool>=0.9.16",
+    "garmin-fit-sdk>=21.218.0",
+]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.17.1",
+]
+
+[project.scripts]
+gymtracker = "gymtracker.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]

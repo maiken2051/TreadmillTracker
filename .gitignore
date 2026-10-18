@@ -3,3 +3,17 @@ __pycache__/
 .venv/
 .pytest_cache/
 .ruff_cache/
+*.egg-info/
+build/
+dist/
+tests/out/
+
+# Private data and local settings: never commit
+config.toml
+workouts/
+*.db
+*.db-wal
+*.db-shm
+*.xlsx
+*.json.gz
+keys/
