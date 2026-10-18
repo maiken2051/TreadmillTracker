@@ -50,6 +50,41 @@ class Summary:
     pause_count: int
 
 
+def summarize(start_t: float, end_t: float, records: list[Record], *,
+              moving_s: float | None = None, distance_m: float | None = None,
+              kcal: float | None = None, pause_count: int = 0) -> Summary:
+    """Totals for a workout. moving_s, distance_m and kcal are the device's own totals when
+    known; otherwise they come from the records (non-paused seconds, last values)."""
+    moving = [r for r in records if not r.paused]
+    hrs = [r.hr for r in moving if r.hr is not None]
+    speeds = [r.speed_mps for r in moving if r.speed_mps is not None]
+    inclines = [r.incline_pct for r in moving if r.incline_pct is not None]
+    if moving_s is None:
+        moving_s = float(len(moving))
+    has_distance = distance_m is not None or any(r.distance_m is not None for r in records)
+    if distance_m is None:
+        distance_m = next((r.distance_m for r in reversed(records)
+                           if r.distance_m is not None), 0.0)
+    if kcal is None:
+        kcal = next((r.kcal for r in reversed(records) if r.kcal is not None), 0.0)
+    return Summary(
+        start_utc=datetime.fromtimestamp(start_t, UTC).isoformat(timespec="seconds"),
+        elapsed_s=round(end_t - start_t, 1),
+        moving_s=moving_s,
+        distance_m=distance_m,
+        ascent_m=round(sum((r.speed_mps or 0) * (r.incline_pct or 0) / 100 for r in moving), 1),
+        kcal=kcal,
+        avg_speed_mps=distance_m / moving_s if moving_s and has_distance else None,
+        max_speed_mps=max(speeds) if speeds else None,
+        avg_incline_pct=round(sum(inclines) / len(inclines), 1) if inclines else None,
+        max_incline_pct=max(inclines) if inclines else None,
+        avg_hr=round(sum(hrs) / len(hrs)) if hrs else None,
+        max_hr=max(hrs) if hrs else None,
+        min_hr=min(hrs) if hrs else None,
+        pause_count=pause_count,
+    )
+
+
 @dataclass
 class Session:
     start_t: float  # epoch seconds
@@ -104,29 +139,13 @@ class Session:
     # ------------------------------------------------------------------ output
 
     def summary(self) -> Summary:
-        moving = [r for r in self.records if not r.paused]
-        hrs = [r.hr for r in moving if r.hr is not None]
-        speeds = [r.speed_mps for r in moving if r.speed_mps is not None]
-        inclines = [r.incline_pct for r in moving if r.incline_pct is not None]
         last = self._treadmill
-        moving_s = float(last.elapsed_s) if last and last.elapsed_s else float(len(moving))
-        distance = float(last.distance_m) if last else 0.0
         end = self.end_t if self.end_t is not None else self.start_t + len(self.records)
-        return Summary(
-            start_utc=datetime.fromtimestamp(self.start_t, UTC).isoformat(timespec="seconds"),
-            elapsed_s=round(end - self.start_t, 1),
-            moving_s=moving_s,
-            distance_m=distance,
-            ascent_m=round(sum((r.speed_mps or 0) * (r.incline_pct or 0) / 100
-                               for r in moving), 1),
-            kcal=float(last.kcal) if last else 0.0,
-            avg_speed_mps=distance / moving_s if moving_s and last else None,
-            max_speed_mps=max(speeds) if speeds else None,
-            avg_incline_pct=round(sum(inclines) / len(inclines), 1) if inclines else None,
-            max_incline_pct=max(inclines) if inclines else None,
-            avg_hr=round(sum(hrs) / len(hrs)) if hrs else None,
-            max_hr=max(hrs) if hrs else None,
-            min_hr=min(hrs) if hrs else None,
+        return summarize(
+            self.start_t, end, self.records,
+            moving_s=float(last.elapsed_s) if last and last.elapsed_s else None,
+            distance_m=float(last.distance_m) if last else None,
+            kcal=float(last.kcal) if last else None,
             pause_count=sum(1 for _, end_t in self.pauses if end_t is not None),
         )
 
