@@ -1,0 +1,224 @@
+{
+  "address": "CF:01:9F:96:52:01",
+  "name": "Treadmill 0951",
+  "captured_at_ms": 1792217160648,
+  "services": [
+    {
+      "uuid": "00001800-0000-1000-8000-00805f9b34fb",
+      "description": "Generic Access Profile",
+      "characteristics": [
+        {
+          "uuid": "00002a01-0000-1000-8000-00805f9b34fb",
+          "handle": 4,
+          "description": "Appearance",
+          "properties": [
+            "read"
+          ],
+          "descriptors": [],
+          "value": "3412"
+        },
+        {
+          "uuid": "00002a04-0000-1000-8000-00805f9b34fb",
+          "handle": 6,
+          "description": "Peripheral Preferred Connection Parameters",
+          "properties": [
+            "read"
+          ],
+          "descriptors": [],
+          "value": "2800500000005802"
+        },
+        {
+          "uuid": "00002a00-0000-1000-8000-00805f9b34fb",
+          "handle": 2,
+          "description": "Device Name",
+          "properties": [
+            "read",
+            "write"
+          ],
+          "descriptors": [],
+          "value": "54726561646d696c6c2030393531"
+        }
+      ]
+    },
+    {
+      "uuid": "a026ee01-0a7d-4ab3-97fa-f1500f9feb8b",
+      "description": "Unknown",
+      "characteristics": [
+        {
+          "uuid": "a026e004-0a7d-4ab3-97fa-f1500f9feb8b",
+          "handle": 21,
+          "description": "Unknown",
+          "properties": [
+            "notify"
+          ],
+          "descriptors": [
+            "00002902-0000-1000-8000-00805f9b34fb"
+          ]
+        },
+        {
+          "uuid": "a026e002-0a7d-4ab3-97fa-f1500f9feb8b",
+          "handle": 18,
+          "description": "Unknown",
+          "properties": [
+            "write-without-response",
+            "notify"
+          ],
+          "descriptors": [
+            "00002902-0000-1000-8000-00805f9b34fb"
+          ]
+        }
+      ]
+    },
+    {
+      "uuid": "00001801-0000-1000-8000-00805f9b34fb",
+      "description": "Generic Attribute Profile",
+      "characteristics": [
+        {
+          "uuid": "00002a05-0000-1000-8000-00805f9b34fb",
+          "handle": 9,
+          "description": "Service Changed",
+          "properties": [
+            "indicate"
+          ],
+          "descriptors": [
+            "00002902-0000-1000-8000-00805f9b34fb"
+          ]
+        }
+      ]
+    },
+    {
+      "uuid": "a026ee03-0a7d-4ab3-97fa-f1500f9feb8b",
+      "description": "Unknown",
+      "characteristics": [
+        {
+          "uuid": "a026e00a-0a7d-4ab3-97fa-f1500f9feb8b",
+          "handle": 25,
+          "description": "Unknown",
+          "properties": [
+            "write-without-response",
+            "notify"
+          ],
+          "descriptors": [
+            "00002902-0000-1000-8000-00805f9b34fb"
+          ]
+        }
+      ]
+    },
+    {
+      "uuid": "0000180a-0000-1000-8000-00805f9b34fb",
+      "description": "Device Information",
+      "characteristics": [
+        {
+          "uuid": "00002a29-0000-1000-8000-00805f9b34fb",
+          "handle": 13,
+          "description": "Manufacturer Name String",
+          "properties": [
+            "read"
+          ],
+          "descriptors": [],
+          "value": "756e6b6e6f776e"
+        },
+        {
+          "uuid": "00002a26-0000-1000-8000-00805f9b34fb",
+          "handle": 15,
+          "description": "Firmware Revision String",
+          "properties": [
+            "read"
+          ],
+          "descriptors": [],
+          "value": "302e30"
+        }
+      ]
+    },
+    {
+      "uuid": "a026ee07-0a7d-4ab3-97fa-f1500f9feb8b",
+      "description": "Unknown",
+      "characteristics": [
+        {
+          "uuid": "a026e01d-0a7d-4ab3-97fa-f1500f9feb8b",
+          "handle": 41,
+          "description": "Unknown",
+          "properties": [
+            "notify"
+          ],
+          "descriptors": [
+            "00002902-0000-1000-8000-00805f9b34fb"
+          ]
+        },
+        {
+          "uuid": "a026e024-0a7d-4ab3-97fa-f1500f9feb8b",
+          "handle": 46,
+          "description": "Unknown",
+          "properties": [
+            "write-without-response",
+            "notify"
+          ],
+          "descriptors": [
+            "00002902-0000-1000-8000-00805f9b34fb"
+          ]
+        },
+        {
+          "uuid": "a026e01f-0a7d-4ab3-97fa-f1500f9feb8b",
+          "handle": 29,
+          "description": "Unknown",
+          "properties": [
+            "read",
+            "notify"
+          ],
+          "descriptors": [
+            "00002902-0000-1000-8000-00805f9b34fb"
+          ],
+          "value": "00"
+        },
+        {
+          "uuid": "a026e01b-0a7d-4ab3-97fa-f1500f9feb8b",
+          "handle": 38,
+          "description": "Unknown",
+          "properties": [
+            "read",
+            "notify"
+          ],
+          "descriptors": [
+            "00002902-0000-1000-8000-00805f9b34fb"
+          ],
+          "value": "50524f4752414d20232030"
+        },
+        {
+          "uuid": "a026e01e-0a7d-4ab3-97fa-f1500f9feb8b",
+          "handle": 32,
+          "description": "Unknown",
+          "properties": [
+            "read",
+            "notify"
+          ],
+          "descriptors": [
+            "00002902-0000-1000-8000-00805f9b34fb"
+          ],
+          "value": "01"
+        },
+        {
+          "uuid": "a026e020-0a7d-4ab3-97fa-f1500f9feb8b",
+          "handle": 35,
+          "description": "Unknown",
+          "properties": [
+            "read",
+            "notify"
+          ],
+          "descriptors": [
+            "00002902-0000-1000-8000-00805f9b34fb"
+          ],
+          "value": ""
+        },
+        {
+          "uuid": "a026e016-0a7d-4ab3-97fa-f1500f9feb8b",
+          "handle": 44,
+          "description": "Unknown",
+          "properties": [
+            "write-without-response"
+          ],
+          "descriptors": []
+        }
+      ]
+    }
+  ]
+}

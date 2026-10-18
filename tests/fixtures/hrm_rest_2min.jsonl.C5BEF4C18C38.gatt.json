@@ -1,0 +1,281 @@
+{
+  "address": "C5:BE:F4:C1:8C:38",
+  "name": "COROS HEART RATE FCCB4C",
+  "captured_at_ms": 1792207439430,
+  "services": [
+    {
+      "uuid": "0000180d-0000-1000-8000-00805f9b34fb",
+      "description": "Heart Rate",
+      "characteristics": [
+        {
+          "uuid": "00002a38-0000-1000-8000-00805f9b34fb",
+          "handle": 36,
+          "description": "Body Sensor Location",
+          "properties": [
+            "read"
+          ],
+          "descriptors": [],
+          "value": "02"
+        },
+        {
+          "uuid": "00002a37-0000-1000-8000-00805f9b34fb",
+          "handle": 33,
+          "description": "Heart Rate Measurement",
+          "properties": [
+            "notify"
+          ],
+          "descriptors": [
+            "00002902-0000-1000-8000-00805f9b34fb"
+          ]
+        },
+        {
+          "uuid": "00002a39-0000-1000-8000-00805f9b34fb",
+          "handle": 38,
+          "description": "Heart Rate Control Point",
+          "properties": [
+            "write"
+          ],
+          "descriptors": []
+        }
+      ]
+    },
+    {
+      "uuid": "6e400001-b5a3-f393-e0a9-77656c6f6f70",
+      "description": "Unknown",
+      "characteristics": [
+        {
+          "uuid": "6e400002-b5a3-f393-e0a9-77656c6f6f70",
+          "handle": 196,
+          "description": "Unknown",
+          "properties": [
+            "write-without-response",
+            "write"
+          ],
+          "descriptors": []
+        },
+        {
+          "uuid": "6e400003-b5a3-f393-e0a9-77656c6f6f70",
+          "handle": 193,
+          "description": "Unknown",
+          "properties": [
+            "notify"
+          ],
+          "descriptors": [
+            "00002902-0000-1000-8000-00805f9b34fb"
+          ]
+        }
+      ]
+    },
+    {
+      "uuid": "00001801-0000-1000-8000-00805f9b34fb",
+      "description": "Generic Attribute Profile",
+      "characteristics": [
+        {
+          "uuid": "00002a05-0000-1000-8000-00805f9b34fb",
+          "handle": 17,
+          "description": "Service Changed",
+          "properties": [
+            "indicate"
+          ],
+          "descriptors": [
+            "00002902-0000-1000-8000-00805f9b34fb"
+          ]
+        }
+      ]
+    },
+    {
+      "uuid": "6e400001-b5a3-f393-e0a9-e50e24dcca9e",
+      "description": "Nordic UART Service",
+      "characteristics": [
+        {
+          "uuid": "6e400003-b5a3-f393-e0a9-e50e24dcca9e",
+          "handle": 209,
+          "description": "Nordic UART TX",
+          "properties": [
+            "notify"
+          ],
+          "descriptors": [
+            "00002902-0000-1000-8000-00805f9b34fb"
+          ]
+        },
+        {
+          "uuid": "6e400002-b5a3-f393-e0a9-e50e24dcca9e",
+          "handle": 212,
+          "description": "Nordic UART RX",
+          "properties": [
+            "write-without-response",
+            "write"
+          ],
+          "descriptors": []
+        }
+      ]
+    },
+    {
+      "uuid": "0000180a-0000-1000-8000-00805f9b34fb",
+      "description": "Device Information",
+      "characteristics": [
+        {
+          "uuid": "00002a24-0000-1000-8000-00805f9b34fb",
+          "handle": 53,
+          "description": "Model Number String",
+          "properties": [
+            "read"
+          ],
+          "descriptors": [],
+          "value": "434f524f532048523331"
+        },
+        {
+          "uuid": "00002a25-0000-1000-8000-00805f9b34fb",
+          "handle": 55,
+          "description": "Serial Number String",
+          "properties": [
+            "read"
+          ],
+          "descriptors": [],
+          "value": "334238334338383143373230"
+        },
+        {
+          "uuid": "00002a28-0000-1000-8000-00805f9b34fb",
+          "handle": 61,
+          "description": "Software Revision String",
+          "properties": [
+            "read"
+          ],
+          "descriptors": [],
+          "value": "5620312e32342e30"
+        },
+        {
+          "uuid": "00002a27-0000-1000-8000-00805f9b34fb",
+          "handle": 59,
+          "description": "Hardware Revision String",
+          "properties": [
+            "read"
+          ],
+          "descriptors": [],
+          "value": "563432"
+        },
+        {
+          "uuid": "00002a23-0000-1000-8000-00805f9b34fb",
+          "handle": 51,
+          "description": "System ID",
+          "properties": [
+            "read"
+          ],
+          "descriptors": [],
+          "value": "01020304055f0000"
+        },
+        {
+          "uuid": "00002a29-0000-1000-8000-00805f9b34fb",
+          "handle": 49,
+          "description": "Manufacturer Name String",
+          "properties": [
+            "read"
+          ],
+          "descriptors": [],
+          "value": "434f524f53"
+        },
+        {
+          "uuid": "00002a26-0000-1000-8000-00805f9b34fb",
+          "handle": 57,
+          "description": "Firmware Revision String",
+          "properties": [
+            "read"
+          ],
+          "descriptors": [],
+          "value": "5658595a616a"
+        },
+        {
+          "uuid": "00002a2a-0000-1000-8000-00805f9b34fb",
+          "handle": 63,
+          "description": "IEEE 11073-20601 Regulatory Cert. Data List",
+          "properties": [
+            "read"
+          ],
+          "descriptors": [],
+          "value": "000000000000"
+        }
+      ]
+    },
+    {
+      "uuid": "00001800-0000-1000-8000-00805f9b34fb",
+      "description": "Generic Access Profile",
+      "characteristics": [
+        {
+          "uuid": "00002a01-0000-1000-8000-00805f9b34fb",
+          "handle": 4,
+          "description": "Appearance",
+          "properties": [
+            "read"
+          ],
+          "descriptors": [],
+          "value": "4103"
+        },
+        {
+          "uuid": "00002aa6-0000-1000-8000-00805f9b34fb",
+          "handle": 6,
+          "description": "Central Address Resolution",
+          "properties": [
+            "read"
+          ],
+          "descriptors": [],
+          "value": "00"
+        },
+        {
+          "uuid": "00002a00-0000-1000-8000-00805f9b34fb",
+          "handle": 2,
+          "description": "Device Name",
+          "properties": [
+            "read"
+          ],
+          "descriptors": [],
+          "value": "434f524f53204845415254205241544520464343423443"
+        }
+      ]
+    },
+    {
+      "uuid": "75f50001-e97c-43f9-9a1d-bd83438f6b99",
+      "description": "Unknown",
+      "characteristics": [
+        {
+          "uuid": "75f50002-e97c-43f9-9a1d-bd83438f6b99",
+          "handle": 241,
+          "description": "Unknown",
+          "properties": [
+            "notify"
+          ],
+          "descriptors": [
+            "00002902-0000-1000-8000-00805f9b34fb"
+          ]
+        },
+        {
+          "uuid": "75f50003-e97c-43f9-9a1d-bd83438f6b99",
+          "handle": 244,
+          "description": "Unknown",
+          "properties": [
+            "write-without-response",
+            "write"
+          ],
+          "descriptors": []
+        }
+      ]
+    },
+    {
+      "uuid": "0000180f-0000-1000-8000-00805f9b34fb",
+      "description": "Battery Service",
+      "characteristics": [
+        {
+          "uuid": "00002a19-0000-1000-8000-00805f9b34fb",
+          "handle": 97,
+          "description": "Battery Level",
+          "properties": [
+            "read"
+          ],
+          "descriptors": [
+            "00002902-0000-1000-8000-00805f9b34fb"
+          ],
+          "value": "14"
+        }
+      ]
+    }
+  ]
+}
