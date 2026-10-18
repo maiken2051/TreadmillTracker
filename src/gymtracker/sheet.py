@@ -2,6 +2,10 @@
 
 Two tabs: Workouts (one row per workout) and Monthly (totals per month). Values are real
 Excel dates, times and numbers, so they sort, filter and chart in Excel.
+
+Kept short on purpose (user, 2026-10-18): no wall-clock duration, incline, ascent, pauses or
+calories. All of those are still in the database and archive, so a column can come back by
+adding it here.
 """
 
 from __future__ import annotations
@@ -27,13 +31,11 @@ class _Units:
     dist: str
     speed: str
     pace: str
-    height: str
     m_to_dist: float
-    m_to_height: float
 
 
-IMPERIAL = _Units("mi", "mph", "min/mi", "ft", 1 / units.M_PER_MILE, 1 / units.M_PER_FOOT)
-METRIC = _Units("km", "km/h", "min/km", "m", 1 / 1000, 1.0)
+IMPERIAL = _Units("mi", "mph", "min/mi", 1 / units.M_PER_MILE)
+METRIC = _Units("km", "km/h", "min/km", 1 / 1000)
 
 
 def _units(name: str) -> _Units:
@@ -59,7 +61,6 @@ def build_workbook(workouts: Iterable[Workout], unit_system: str = "imperial") -
     columns = [
         ("Date", 16, "ddd m/d/yyyy"),
         ("Start", 10, "h:mm AM/PM"),
-        ("Duration", 10, "[h]:mm:ss"),
         ("Moving", 10, "[h]:mm:ss"),
         (f"Distance ({u.dist})", 13, "0.00"),
         (f"Pace ({u.pace})", 13, "mm:ss"),
@@ -67,11 +68,6 @@ def build_workbook(workouts: Iterable[Workout], unit_system: str = "imperial") -
         ("Avg HR", 9, "0"),
         ("Max HR", 9, "0"),
         ("Min HR", 9, "0"),
-        ("Calories", 10, "0"),
-        (f"Ascent ({u.height})", 12, "0"),
-        ("Avg incline (%)", 15, "0.0"),
-        ("Max incline (%)", 15, "0.0"),
-        ("Pauses", 8, "0"),
         ("Source", 18, "@"),
         ("Notes", 40, "@"),
     ]
@@ -81,11 +77,9 @@ def build_workbook(workouts: Iterable[Workout], unit_system: str = "imperial") -
         start = w.start_local
         speed = None if s.avg_speed_mps is None else s.avg_speed_mps * 3600 * u.m_to_dist
         ws.append([
-            start.date(), start.time().replace(tzinfo=None), _days(s.elapsed_s),
-            _days(s.moving_s), s.distance_m * u.m_to_dist,
-            _pace_days(s.distance_m, s.moving_s, u), speed, s.avg_hr, s.max_hr, s.min_hr,
-            s.kcal, s.ascent_m * u.m_to_height, s.avg_incline_pct, s.max_incline_pct,
-            s.pause_count, w.source, w.notes,
+            start.date(), start.time().replace(tzinfo=None), _days(s.moving_s),
+            s.distance_m * u.m_to_dist, _pace_days(s.distance_m, s.moving_s, u), speed,
+            s.avg_hr, s.max_hr, s.min_hr, w.source, w.notes,
         ])
     _formats(ws, columns)
 
@@ -97,7 +91,6 @@ def build_workbook(workouts: Iterable[Workout], unit_system: str = "imperial") -
         (f"Distance ({u.dist})", 13, "0.0"),
         (f"Avg pace ({u.pace})", 16, "mm:ss"),
         ("Avg HR", 9, "0"),
-        ("Calories", 10, "0"),
     ]
     _header(ms, mcols)
     for month, group in _by_month(workouts):
@@ -107,7 +100,7 @@ def build_workbook(workouts: Iterable[Workout], unit_system: str = "imperial") -
         hr_time = sum(t for _, t in hr_w)
         avg_hr = round(sum(h * t for h, t in hr_w) / hr_time) if hr_time else None
         ms.append([month, len(group), _days(moving), dist * u.m_to_dist,
-                   _pace_days(dist, moving, u), avg_hr, sum(w.summary.kcal for w in group)])
+                   _pace_days(dist, moving, u), avg_hr])
     _formats(ms, mcols)
     return wb
 

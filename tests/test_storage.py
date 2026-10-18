@@ -196,8 +196,8 @@ def test_workbook_rows_and_units(tmp_path):
     wb = load_workbook(path)
     ws = wb["Workouts"]
     header = [c.value for c in ws[1]]
-    assert header[:6] == ["Date", "Start", "Duration", "Moving", "Distance (mi)",
-                          "Pace (min/mi)"]
+    assert header == ["Date", "Start", "Moving", "Distance (mi)", "Pace (min/mi)",
+                      "Avg speed (mph)", "Avg HR", "Max HR", "Min HR", "Source", "Notes"]
     rows = list(ws.iter_rows(min_row=2, values_only=True))
     assert len(rows) == 2
     first = dict(zip(header, rows[0], strict=True))
@@ -207,7 +207,6 @@ def test_workbook_rows_and_units(tmp_path):
     calib = dict(zip(header, rows[1], strict=True))
     assert round(calib["Distance (mi)"], 2) == 0.26
     assert round(calib["Moving"].total_seconds()) == 308  # a real Excel duration
-    assert calib["Calories"] == 29
     monthly = list(wb["Monthly"].iter_rows(min_row=2, values_only=True))
     assert [m[1] for m in monthly] == [1, 1]  # Oct 2025, Oct 2026
 
@@ -215,8 +214,8 @@ def test_workbook_rows_and_units(tmp_path):
 def test_workbook_metric(tmp_path):
     wb = build_workbook([make_workout(n=1001)[0]], "metric")
     ws = wb["Workouts"]
-    assert ws.cell(1, 5).value == "Distance (km)"
-    assert ws.cell(2, 5).value == pytest.approx(1.2)
+    assert ws.cell(1, 4).value == "Distance (km)"
+    assert ws.cell(2, 4).value == pytest.approx(1.2)
 
 
 def test_write_sheet_is_atomic(tmp_path):
