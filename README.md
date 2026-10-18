@@ -14,8 +14,10 @@ copied to a network share. No cloud services, no accounts. It replaces the aband
 GymTrakr iPhone app.
 
 **Status:** under construction. Bluetooth discovery is done and the protocol is decoded;
-the parsers are written and tested. Recording, storage, the touchscreen UI and history
-pages come next. A full write-up of the treadmill protocol will be in `docs/PROTOCOL.md`.
+the parsers and the workout state machine (start, pause, resume, end, from the console's own
+events) are written and tested against real captures. Storage, the live Bluetooth clients,
+the touchscreen UI and history pages come next. A full write-up of the treadmill protocol
+will be in `docs/PROTOCOL.md`.
 
 ## Hardware
 
@@ -30,6 +32,7 @@ pages come next. A full write-up of the treadmill protocol will be in `docs/PROT
 | Path | What it is |
 |---|---|
 | `src/gymtracker/ble/` | Parsers (and, later, clients) for the strap and the treadmill |
+| `src/gymtracker/state.py`, `session.py`, `recorder.py` | Workout state machine, 1 Hz records and totals, and the glue between them |
 | `src/gymtracker/sim/` | Replays recorded captures as fake devices, so everything runs without hardware |
 | `tests/fixtures/` | Real captures from the devices: one JSON line per BLE notification, plus each device's GATT table |
 | `tools/ble_spike.py` | Discovery and capture tool, run on the Pi |
@@ -46,11 +49,16 @@ python -m venv .venv
 .venv/Scripts/ruff check .
 ```
 
-Replay a capture as a 1 Hz table:
+Replay a capture through the recorder (state changes and the resulting workout), or as a
+raw 1 Hz table:
 
 ```sh
 python -m gymtracker --replay tests/fixtures/treadmill_calib.jsonl
+python -m gymtracker --replay tests/fixtures/treadmill_calib.jsonl --table
 ```
+
+Settings live in `config.toml` (not committed); `config.example.toml` lists every key with
+its default.
 
 `tools/ble_spike.py` is the discovery tool used to capture the fixtures on the Pi
 (scan, dump the GATT table, record notifications). It only reads and subscribes; it never

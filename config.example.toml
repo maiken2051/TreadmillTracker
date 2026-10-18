@@ -1,0 +1,39 @@
+# Copy to config.toml (never committed) and edit. Every key is optional; these are the defaults.
+
+[hrm]
+name_prefix = "COROS"      # match on advertised name
+address = ""               # optional: pin to one strap's address
+
+[treadmill]
+name_prefix = "Treadmill"  # advertised as "Treadmill NNNN"; address changes every time
+
+[session]
+start_speed_kmh = 0.5      # speed fallback, only used if the console sends no state events
+start_hold_s = 3
+autopause_after_s = 10
+end_after_paused_s = 180
+wake_timeout_s = 60        # screen on but nothing connected -> back to idle
+ready_timeout_s = 600      # connected but no workout started -> back to idle
+idle_return_s = 300        # summary screen -> idle
+min_session_s = 60         # shorter workouts are not saved
+checkpoint_s = 30
+lap_distance_m = 1000
+
+[user]
+units = "imperial"         # mi, mph, min/mi, ft (or "metric"); storage is always SI
+max_hr = 0                 # for HR zones; 0 = use hr_zones below
+hr_zones = [100, 115, 130, 145, 160]   # zone lower bounds, bpm
+
+[storage]
+data_dir = "~/workouts"    # gymtracker.db, archive/, logs/
+
+[export]
+smb_mount = "/mnt/nas-workouts"
+smb_subdir = "GymTracker"
+spreadsheet = "Workouts.xlsx"
+
+[display]
+backlight = "auto"         # or explicit /sys/class/backlight/<name>
+
+[web]
+port = 8080

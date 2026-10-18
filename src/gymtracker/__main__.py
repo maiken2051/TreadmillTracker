@@ -1,7 +1,8 @@
 """Command line: python -m gymtracker (or the `gymtracker` script).
 
-Phase 1 only has `--replay`, which prints the 1 Hz table of a capture. The full app (BLE,
-session, storage, UI) replaces this in Phase 4.
+So far only `--replay` exists: it runs a capture through the recorder and prints the state
+changes and the resulting workout (`--table` prints the raw 1 Hz table instead). The full
+app (BLE, session, storage, UI) replaces this in Phase 4.
 """
 
 from __future__ import annotations
@@ -19,12 +20,14 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--version", action="version", version=__version__)
     ap.add_argument("--replay", type=Path, metavar="FIXTURE",
                     help="replay a JSONL capture instead of using Bluetooth")
+    ap.add_argument("--table", action="store_true", help="with --replay: print the 1 Hz table")
     args = ap.parse_args(argv)
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     if args.replay is None:
         ap.error("only --replay is implemented so far")
+    # Replay prints its own state changes; only show warnings (e.g. unknown frames).
+    logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
     from gymtracker.sim import replay
-    return replay.main([str(args.replay)])
+    return replay.main([str(args.replay)] + (["--table"] if args.table else []))
 
 
 if __name__ == "__main__":

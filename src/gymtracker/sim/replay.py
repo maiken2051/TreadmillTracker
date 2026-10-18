@@ -4,7 +4,7 @@ A fixture line is {"t": epoch ms, "dev": address, "char": uuid, "data": hex}, as
 tools/ble_spike.py and, later, by the real clients' raw logs. The fake clients parse each
 notification with the same parsers as the real clients and call the same callbacks.
 
-    python -m gymtracker.sim.replay tests/fixtures/treadmill_walk_5min.jsonl
+    python -m gymtracker.sim.replay tests/fixtures/treadmill_walk_5min.jsonl [--table]
 """
 
 from __future__ import annotations
@@ -28,6 +28,9 @@ from gymtracker.ble.treadmill import (
     parse_data_frame,
     parse_state,
 )
+from gymtracker.config import SessionConfig
+from gymtracker.recorder import Recorder
+from gymtracker.state import Device
 
 
 @dataclass(frozen=True)
@@ -118,6 +121,37 @@ def _route(n: Notification, hrm: FakeHrmClient | None,
             treadmill.feed(n)
 
 
+def run_recorder(notes: list[Notification], recorder: Recorder, tail_s: float = 1.0) -> None:
+    """Drive a Recorder from a capture, as the app would drive it from the real devices.
+
+    Each device is "seen" and "connected" at its first notification, tick() runs once a
+    second, and both devices disconnect at the end (the console drops the link after a
+    workout), followed by tail_s seconds of ticks.
+    """
+    if not notes:
+        return
+    hrm = FakeHrmClient(recorder.hr)
+    treadmill = FakeTreadmillClient(recorder.treadmill, recorder.treadmill_state)
+    clients = {Device.HRM: hrm, Device.TREADMILL: treadmill}
+    next_tick = notes[0].t + 1
+    for n in notes:
+        while next_tick <= n.t:
+            recorder.tick(next_tick)
+            next_tick += 1
+        device = Device.HRM if n.char == HR_MEASUREMENT_UUID else Device.TREADMILL
+        if not clients[device].connected:
+            recorder.device_seen(n.t, device)
+            recorder.device_connected(n.t, device)
+        _route(n, hrm, treadmill)
+    end = notes[-1].t
+    for device, client in clients.items():
+        if client.connected:
+            recorder.device_disconnected(end, device)
+    while next_tick <= end + tail_s:
+        recorder.tick(next_tick)
+        next_tick += 1
+
+
 # --------------------------------------------------------------------------- 1 Hz table
 
 
@@ -178,11 +212,39 @@ def format_table(rows: Iterable[Row]) -> Iterator[str]:
         yield f"{r.t_s:>5}  {state:<8} {hr:>4} {mph:>5} {incl:>5} {miles:>6} {kcal:>4} {elapsed:>6}"
 
 
+def summarize(notes: list[Notification], cfg: SessionConfig | None = None) -> Iterator[str]:
+    """Replay through a Recorder and describe the state changes and resulting sessions."""
+    t0 = notes[0].t if notes else 0.0
+    lines: list[str] = []
+
+    def on_change(t: float, old, new) -> None:
+        lines.append(f"{t - t0:7.1f}s  {old.value} -> {new.value}")
+
+    def on_end(verb: str):
+        def cb(session) -> None:
+            s = session.summary()
+            lines.append(f"{session.end_t - t0:7.1f}s  {verb}: moving "
+                         f"{int(s.moving_s) // 60}:{int(s.moving_s) % 60:02d}, "
+                         f"{units.m_to_miles(s.distance_m):.2f} mi, {s.kcal:.0f} kcal, "
+                         f"avg HR {s.avg_hr or '-'}, max HR {s.max_hr or '-'}, "
+                         f"pauses {s.pause_count}, ascent {units.m_to_feet(s.ascent_m):.0f} ft")
+        return cb
+
+    recorder = Recorder(cfg or SessionConfig(), on_save=on_end("saved"),
+                        on_discard=on_end("discarded"), on_change=on_change)
+    run_recorder(notes, recorder)
+    if recorder.machine.end_reason is not None:
+        lines.append(f"end reason: {recorder.machine.end_reason.value}")
+    yield from lines
+
+
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description="Print a 1 Hz table from a JSONL capture.")
+    ap = argparse.ArgumentParser(description="Replay a JSONL capture.")
     ap.add_argument("fixture", type=Path)
+    ap.add_argument("--table", action="store_true", help="print the raw 1 Hz table instead")
     args = ap.parse_args(argv)
-    for line in format_table(table_rows(read_fixture(args.fixture))):
+    notes = read_fixture(args.fixture)
+    for line in format_table(table_rows(notes)) if args.table else summarize(notes):
         print(line)
     return 0
 
