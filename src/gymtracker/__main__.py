@@ -1,12 +1,15 @@
 """Command line: python -m gymtracker (or the `gymtracker` script).
 
+    gymtracker run [-v]                              the app: record from the devices
+    gymtracker run --replay FIXTURE [--speed N]      the app, fed from a capture
     gymtracker --replay FIXTURE [--table] [--save]   run a capture through the recorder
     gymtracker import-fit FOLDER --label NAME        import old .fit workouts
     gymtracker sheet [-o FILE]                       rebuild Workouts.xlsx
     gymtracker list                                  list stored workouts
     gymtracker rebuild-db --out FILE [--reparse]     new database from the archive
 
-The full app (BLE, UI) arrives in Phase 4. --data-dir overrides [storage] data_dir.
+`run` prints state changes and a 1 Hz status line (the screen UI arrives in Phase 6).
+Ctrl-C saves a workout in progress. --data-dir overrides [storage] data_dir.
 """
 
 from __future__ import annotations
@@ -33,6 +36,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--save", action="store_true",
                     help="with --replay: save the workout to the library")
     sub = ap.add_subparsers(dest="command")
+    p = sub.add_parser("run", help="run the app (headless for now)")
+    p.add_argument("--replay", type=Path, metavar="FIXTURE", dest="run_replay",
+                   help="feed the app from a JSONL capture instead of Bluetooth")
+    p.add_argument("--speed", type=float, default=1.0,
+                   help="with --replay: times real time (0 = as fast as possible)")
+    p.add_argument("-v", "--verbose", action="store_true", help="log connection details")
     p = sub.add_parser("import-fit", help="import a folder of .fit workouts")
     p.add_argument("folder", type=Path)
     p.add_argument("--label", required=True, help="source label, e.g. walkingtall")
@@ -46,13 +55,20 @@ def main(argv: list[str] | None = None) -> int:
                    help="re-derive workouts from their raw BLE notifications")
     args = ap.parse_args(argv)
 
-    logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
+    verbose = getattr(args, "verbose", False)
+    logging.basicConfig(level=logging.INFO if verbose else logging.WARNING,
+                        format="%(asctime)s %(levelname)s %(name)s: %(message)s"
+                        if verbose else "%(levelname)s %(name)s: %(message)s",
+                        datefmt="%H:%M:%S")
     cfg = load_config(args.config)
     if args.data_dir is not None:
         cfg.storage.data_dir = str(args.data_dir)
 
     if args.replay is not None:
         return _replay(cfg, args)
+    if args.command == "run":
+        from gymtracker.app import run
+        return run(cfg, args.run_replay, args.speed)
     if args.command == "import-fit":
         return _import_fit(cfg, args)
     if args.command == "sheet":

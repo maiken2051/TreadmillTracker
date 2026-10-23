@@ -1,4 +1,4 @@
-"""Heart Rate Service (0x180D): parser for Heart Rate Measurement (0x2A37).
+"""Heart Rate Service (0x180D): parser for Heart Rate Measurement (0x2A37), and the client.
 
 The parser handles the full flags byte from the Bluetooth SIG spec, even though the COROS
 strap only ever sends flags 0x00 + uint8 bpm. That strap has no sensor-contact bits, so bpm 0
@@ -7,8 +7,13 @@ means "not on skin" and is reported as no heart rate (DESIGN.md §4.3).
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
+
+from gymtracker.ble.link import Link
 
 log = logging.getLogger(__name__)
 
@@ -77,3 +82,55 @@ def parse_battery_level(data: bytes) -> int | None:
         log.warning("unexpected battery level: %s", data.hex())
         return None
     return data[0]
+
+
+SILENCE_S = 20.0  # connected but quiet this long -> reconnect (seen at 20 % battery)
+BATTERY_EVERY_S = 300.0
+
+
+class HrmClient(Link):
+    """Subscribes to Heart Rate Measurement and polls Battery Level (read-only on the COROS
+    strap). Silences under ~15 s are normal (strap adjusted, brief loss of contact)."""
+
+    def __init__(self, on_sample: Callable[[float, HrSample], None], **kwargs) -> None:
+        super().__init__(**kwargs)
+        from gymtracker.state import Device  # state.py imports the ble package
+        self.device = Device.HRM
+        self.on_sample = on_sample
+        self.battery_pct: int | None = None
+        self._last_note = 0.0  # monotonic
+
+    async def setup(self, client) -> None:
+        self._last_note = time.monotonic()
+        await client.start_notify(HR_MEASUREMENT_UUID, self.notify_handler(HR_MEASUREMENT_UUID))
+
+    def handle(self, t: float, char: str, data: bytes) -> None:
+        if char == HR_MEASUREMENT_UUID:
+            self._last_note = time.monotonic()
+            sample = parse_hr_measurement(data)
+            if sample is not None:
+                self.on_sample(t, sample)
+        elif char == BATTERY_LEVEL_UUID:
+            pct = parse_battery_level(data)
+            if pct is not None:
+                if pct != self.battery_pct:
+                    log.info("hrm: battery %d%%", pct)
+                self.battery_pct = pct
+
+    async def maintain(self, client) -> None:
+        next_battery = time.monotonic()
+        while self.connected:
+            now = time.monotonic()
+            if now >= next_battery:
+                next_battery = now + BATTERY_EVERY_S
+                try:
+                    self.received(BATTERY_LEVEL_UUID,
+                                  bytes(await client.read_gatt_char(BATTERY_LEVEL_UUID)))
+                except Exception as e:
+                    log.warning("hrm: battery read failed: %r", e)
+            if now - self._last_note >= SILENCE_S:
+                log.warning("hrm: connected but silent for %.0f s; reconnecting",
+                            now - self._last_note)
+                await self.disconnect()
+                return
+            await asyncio.sleep(1.0)

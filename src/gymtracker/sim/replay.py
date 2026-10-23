@@ -121,13 +121,33 @@ def _route(n: Notification, hrm: FakeHrmClient | None,
             treadmill.feed(n)
 
 
-def run_recorder(notes: list[Notification], recorder: Recorder, tail_s: float = 1.0) -> None:
+def run_recorder(notes: list[Notification], recorder: Recorder, tail_s: float = 1.0,
+                 on_note: Callable[[Notification], None] | None = None) -> None:
     """Drive a Recorder from a capture, as the app would drive it from the real devices.
 
     Each device is "seen" and "connected" at its first notification, tick() runs once a
     second, and both devices disconnect at the end (the console drops the link after a
-    workout), followed by tail_s seconds of ticks.
+    workout), followed by tail_s seconds of ticks. on_note sees every notification first.
+    Anything with the Recorder's event methods can stand in for it (the app does).
     """
+    for _ in drive(notes, recorder, tail_s, on_note):
+        pass
+
+
+async def run_recorder_paced(notes: list[Notification], recorder: Recorder,
+                             speed: float = 1.0, tail_s: float = 1.0,
+                             on_note: Callable[[Notification], None] | None = None) -> None:
+    """run_recorder with the recorded timing, divided by speed (0 = no waiting)."""
+    prev = notes[0].t if notes else 0.0
+    for t in drive(notes, recorder, tail_s, on_note):
+        if speed > 0 and t > prev:
+            await asyncio.sleep((t - prev) / speed)
+        prev = max(prev, t)
+
+
+def drive(notes: list[Notification], recorder: Recorder, tail_s: float = 1.0,
+          on_note: Callable[[Notification], None] | None = None) -> Iterator[float]:
+    """The steps of run_recorder; yields each step's time just before carrying it out."""
     if not notes:
         return
     hrm = FakeHrmClient(recorder.hr)
@@ -136,8 +156,12 @@ def run_recorder(notes: list[Notification], recorder: Recorder, tail_s: float = 
     next_tick = notes[0].t + 1
     for n in notes:
         while next_tick <= n.t:
+            yield next_tick
             recorder.tick(next_tick)
             next_tick += 1
+        yield n.t
+        if on_note is not None:
+            on_note(n)
         device = Device.HRM if n.char == HR_MEASUREMENT_UUID else Device.TREADMILL
         if not clients[device].connected:
             recorder.device_seen(n.t, device)
@@ -148,6 +172,7 @@ def run_recorder(notes: list[Notification], recorder: Recorder, tail_s: float = 
         if client.connected:
             recorder.device_disconnected(end, device)
     while next_tick <= end + tail_s:
+        yield next_tick
         recorder.tick(next_tick)
         next_tick += 1
 

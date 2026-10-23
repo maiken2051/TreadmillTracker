@@ -1,4 +1,5 @@
-"""TRUE treadmill vendor protocol (service a026ee07): parsers for data and state frames.
+"""TRUE treadmill vendor protocol (service a026ee07): parsers for data and state frames, and
+the client.
 
 The console does not speak FTMS. The layout below was decoded from the Phase 0 captures
 and confirmed by a calibration walk; DESIGN.md §4.3 has the full table.
@@ -11,7 +12,10 @@ from __future__ import annotations
 
 import enum
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
+
+from gymtracker.ble.link import Link
 
 log = logging.getLogger(__name__)
 
@@ -80,3 +84,29 @@ def parse_state(data: bytes) -> TreadmillState:
             pass
     log.warning("unknown treadmill state: %s", data.hex())
     return TreadmillState.UNKNOWN
+
+
+class TreadmillClient(Link):
+    """Subscribes to the data and state characteristics and reads the state once on connect.
+    Read-only: this class has no code path that writes to the console."""
+
+    def __init__(self, on_sample: Callable[[float, TreadmillSample | InclineSample], None],
+                 on_state: Callable[[float, TreadmillState], None], **kwargs) -> None:
+        super().__init__(**kwargs)
+        from gymtracker.state import Device  # state.py imports this module
+        self.device = Device.TREADMILL
+        self.on_sample = on_sample
+        self.on_state = on_state
+
+    async def setup(self, client) -> None:
+        await client.start_notify(DATA_UUID, self.notify_handler(DATA_UUID))
+        await client.start_notify(STATE_UUID, self.notify_handler(STATE_UUID))
+        self.received(STATE_UUID, bytes(await client.read_gatt_char(STATE_UUID)))
+
+    def handle(self, t: float, char: str, data: bytes) -> None:
+        if char == DATA_UUID:
+            sample = parse_data_frame(data)
+            if sample is not None:
+                self.on_sample(t, sample)
+        elif char == STATE_UUID:
+            self.on_state(t, parse_state(data))
