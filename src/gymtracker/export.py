@@ -52,9 +52,11 @@ class ExportResult:
 
 
 def is_network_mount(path: Path) -> bool:
-    """True if path is (inside) a mounted SMB share. Stat first so a systemd automount
-    mounts; the check then stops us writing into the empty local mount point."""
-    os.stat(path)
+    """True if path is (inside) a mounted SMB share. List it first so a systemd automount
+    mounts (a stat of the mount point does not); the check then stops us writing into the
+    empty local mount point."""
+    with os.scandir(path) as entries:
+        next(entries, None)
     if not sys.platform.startswith("linux"):
         return True  # Windows/macOS: a UNC path or a test folder
     best, fstype = "", ""
