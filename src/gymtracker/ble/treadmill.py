@@ -49,7 +49,7 @@ class InclineSample:
 class TreadmillState(enum.Enum):
     IDLE = 0x01  # connected, no workout started yet (seen in field test 1)
     RUNNING = 0x0A  # Quick Start or resume
-    PAUSED_OR_STOPPED = 0x02  # Stop sends this at once, ENDED follows 6-12 s later
+    PAUSED_OR_STOPPED = 0x02  # Stop sends this at once, ENDED follows 6-19 s later
     ENDED = 0x80
     UNKNOWN = -1
 
