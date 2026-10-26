@@ -17,8 +17,29 @@ GymTrakr iPhone app.
 Bluetooth button, walk, press Stop. It shows heart rate (coloured by zone), time, speed,
 distance, pace and calories on a 7" touchscreen, saves the workout to SQLite plus a
 write-once archive file, rebuilds `Workouts.xlsx`, and copies all of it to a network share.
-Still to come: history pages and printable reports (to replace Strava), and a full
-write-up of the treadmill protocol in `docs/PROTOCOL.md`.
+Still to come: history pages and printable reports (to replace Strava). The treadmill's
+Bluetooth protocol is written up in [`docs/PROTOCOL.md`](docs/PROTOCOL.md).
+
+![Recording: heart rate coloured by zone, time, speed, distance, pace, calories](docs/screenshots/recording.png)
+
+| Getting ready | After a workout |
+|---|---|
+| ![Setup steps](docs/screenshots/ready.png) | ![Summary with min/avg/max](docs/screenshots/finished.png) |
+
+(Screenshots use made-up numbers; `python tools/screenshots.py` regenerates them.)
+
+```mermaid
+flowchart LR
+  strap["Heart-rate strap<br/>(BLE Heart Rate Service)"] -- notify --> app
+  tm["TRUE treadmill console<br/>(vendor BLE service a026ee07)"] -- notify --> app
+  subgraph pi["Raspberry Pi 5"]
+    app["gymtracker<br/>scanner · state machine · recorder"]
+    app --> db[("SQLite<br/>+ archive .json.gz<br/>+ Workouts.xlsx")]
+    app -- "WebSocket :8080" --> page["Touchscreen page<br/>(Chromium kiosk)"]
+  end
+  db -- "copy after each workout<br/>(retried if offline)" --> nas[("Network share")]
+  page -. "same page" .-> phone["Phone / PC browser"]
+```
 
 ## How a workout goes
 
@@ -55,6 +76,8 @@ connections for about 10 minutes after it comes off the arm, so it is not a reli
 | `src/gymtracker/web/` | The touchscreen page (one HTML file) and its aiohttp server |
 | `deploy/` | Everything the Pi needs to run by itself; `deploy/install.sh` sets it up |
 | `tools/deploy.sh` | Updates the Pi from a checkout without interrupting a workout |
+| `tools/screenshots.py` | Renders the README screenshots from made-up states |
+| `docs/PROTOCOL.md` | The treadmill console's Bluetooth protocol |
 | `src/gymtracker/sim/` | Replays recorded captures as fake devices, so everything runs without hardware |
 | `tests/fixtures/` | Real captures from the devices: one JSON line per BLE notification, plus each device's GATT table |
 | `tools/ble_spike.py` | Discovery and capture tool, run on the Pi |
