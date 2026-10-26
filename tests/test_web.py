@@ -126,3 +126,19 @@ def test_stop_is_quick_with_a_page_that_never_answers(tmp_path):
         return elapsed
 
     assert asyncio.run(go()) < 5
+
+
+def test_replay_stopped_early_ends_where_it_got_to(tmp_path):
+    async def go():
+        app = make_app(tmp_path)
+        task = asyncio.create_task(app.run_replay(FIXTURES / "combined_3min_b.jsonl", speed=50))
+        while app.state is not SessionState.RECORDING:
+            await asyncio.sleep(0.01)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        return app
+
+    app = asyncio.run(go())
+    assert app.recorder.session.end_t - app.recorder.session.start_t < 60
+    assert not list((tmp_path / "archive").rglob("*.json.gz"))  # too short: discarded

@@ -60,6 +60,7 @@ class App:
         self.nas_error = ""
         self.listeners: list[Callable[[], None]] = []  # the web server: "state changed"
         self.connected: dict[Device, bool] = {d: False for d in Device}
+        self.last_tick: float | None = None  # replay time, so a stopped replay ends there
         self.imperial = cfg.user.units == "imperial"
         self.recorder = Recorder(cfg.session, on_save=self._save, on_discard=self._discard,
                                  on_checkpoint=self._checkpoint, on_change=self._changed)
@@ -138,6 +139,7 @@ class App:
         self.recorder.treadmill_state(t, state)
 
     def tick(self, t: float) -> None:
+        self.last_tick = t
         self.recorder.tick(t)
         if self.nas_pending and t >= self._next_export_retry:
             self._next_export_retry = t + RETRY_EVERY_S
@@ -434,7 +436,9 @@ class App:
             await run_recorder_paced(notes, self, speed=speed,
                                      on_note=lambda n: self.note(n.t, n.dev, n.char, n.data))
         finally:
-            self.close(notes[-1].t if notes else time.time())
+            end = self.last_tick if self.last_tick is not None else (
+                notes[-1].t if notes else time.time())
+            self.close(end)
             await self.wait_export()
 
 
