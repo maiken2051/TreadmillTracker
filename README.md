@@ -133,6 +133,10 @@ first: `systemctl --user stop gymtracker`, and `start` it again afterwards.
 
 To shut the Pi down before unplugging it, press the Pi 5 power button twice (the first
 press opens the shutdown menu, the second shuts down); holding it is a hard power-off.
+A single press only opens that menu (Shutdown / Reboot / Logout; Logout ends the kiosk
+session). While the app sleeps the screen is dark, so the menu can be open unseen and a later
+press would shut down: after a stray press, wake the screen (treadmill Bluetooth button) and
+close it.
 
 ## License
 
