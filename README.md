@@ -84,6 +84,7 @@ Storage commands (all take `--data-dir DIR`; the default is `~/workouts`):
 ```sh
 gymtracker import-fit OLD_FIT_FOLDER --label gymtrakr   # bring in old .fit workouts
 gymtracker list
+gymtracker delete ID [ID ...]                           # archive files move to archive/deleted/
 gymtracker sheet                                        # rebuild Workouts.xlsx
 gymtracker rebuild-db --out new.db [--reparse]          # recreate the DB from the archive
 ```
