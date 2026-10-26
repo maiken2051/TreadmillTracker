@@ -83,6 +83,18 @@ def test_summary_uses_console_counters():
     assert sm.ascent_m == pytest.approx(60 * 1.5 * 0.05, abs=0.1)
 
 
+def test_summary_speeds_stay_ordered():
+    # Field test 1, run 2: the distance counter ran ahead of the speed field.
+    s = Session(start_t=0.0)
+    for i in range(120):
+        s.add_treadmill(i + 0.2, tm(i, 1.0, int(i * 1.05)))
+    s.finish(120.0)
+    sm = s.summary()
+    assert sm.avg_speed_mps == pytest.approx(124 / 119)
+    assert sm.max_speed_mps == sm.avg_speed_mps
+    assert sm.min_speed_mps <= sm.avg_speed_mps
+
+
 def test_summary_without_treadmill():
     s = Session(start_t=0.0)
     s.add_hr(0.5, HrSample(80))

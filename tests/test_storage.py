@@ -12,7 +12,7 @@ from gymtracker.archive import read_archive, write_archive
 from gymtracker.config import SessionConfig
 from gymtracker.library import Library, rebuild_db
 from gymtracker.recorder import Recorder
-from gymtracker.session import Record, summarize
+from gymtracker.session import Record, ordered_speeds, summarize
 from gymtracker.sheet import build_workbook
 from gymtracker.sim.replay import read_fixture, run_recorder
 from gymtracker.store import DuplicateWorkout, Store, Workout
@@ -319,3 +319,24 @@ def test_import_fit_reports_bad_files(tmp_path):
     with Library(tmp_path / "lib") as lib:
         result = lib.import_fit(src, "test")
     assert not result.added and len(result.failed) == 1
+
+
+@pytest.mark.parametrize("given, expected", [
+    ((1.0, 1.1, 1.05), (1.0, 1.1, 1.1)),  # field test 1 run 2: avg above max
+    ((1.0, 0.95, 1.0), (0.95, 0.95, 1.0)),  # run 1: avg below the held min
+    ((1.0, 0.0, 1.2), (1.0, None, 1.2)),  # no distance recorded: average unknown
+    ((None, 1.1, None), (None, 1.1, None)),
+])
+def test_ordered_speeds(given, expected):
+    assert ordered_speeds(*given) == expected
+
+
+def test_rebuild_orders_old_speeds(tmp_path):
+    w, records = make_workout(source="import:x")
+    w.summary.max_speed_mps = w.summary.avg_speed_mps - 0.05  # as stored before the fix
+    with Library(tmp_path) as lib:
+        lib.add(w, records)
+    rebuild_db(tmp_path / "archive", tmp_path / "rebuilt.db")
+    with Store(tmp_path / "rebuilt.db") as st:
+        s = st.list()[0].summary
+        assert s.max_speed_mps == s.avg_speed_mps

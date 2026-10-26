@@ -18,7 +18,7 @@ from pathlib import Path
 
 from gymtracker.archive import iter_archives, read_archive, write_archive
 from gymtracker.config import SessionConfig
-from gymtracker.session import Record, Session
+from gymtracker.session import Record, Session, ordered_speeds
 from gymtracker.sheet import write_workbook
 from gymtracker.store import DuplicateWorkout, Store, Workout, local_offset_min, now_utc
 
@@ -133,6 +133,9 @@ def rebuild_db(archive_dir: str | Path, db_path: str | Path, reparse: bool = Fal
                     problems.append((path, "reparse did not give one workout; kept samples"))
                 else:
                     workout.summary, records = session.summary(), session.records
+            s = workout.summary
+            s.min_speed_mps, s.avg_speed_mps, s.max_speed_mps = ordered_speeds(
+                s.min_speed_mps, s.avg_speed_mps, s.max_speed_mps)
             workout.archive = rel.as_posix()
             try:
                 store.save(workout, records)

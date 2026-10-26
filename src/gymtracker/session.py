@@ -79,6 +79,17 @@ def held_min_speed(records: list[Record]) -> float | None:
     return best
 
 
+def ordered_speeds(min_s: float | None, avg_s: float | None,
+                   max_s: float | None) -> tuple[float | None, float | None, float | None]:
+    """The average comes from the distance counter, min and max from the speed field, and the
+    counter runs ~2% ahead (field test 1); clamp so min <= avg <= max and the sheet never
+    reads backwards. A zero average (no distance recorded) is unknown, not slow."""
+    if not avg_s:
+        return min_s, None, max_s
+    return (None if min_s is None else min(min_s, avg_s), avg_s,
+            None if max_s is None else max(max_s, avg_s))
+
+
 def summarize(start_t: float, end_t: float, records: list[Record], *,
               moving_s: float | None = None, distance_m: float | None = None,
               kcal: float | None = None, pause_count: int = 0) -> Summary:
@@ -96,6 +107,10 @@ def summarize(start_t: float, end_t: float, records: list[Record], *,
                            if r.distance_m is not None), 0.0)
     if kcal is None:
         kcal = next((r.kcal for r in reversed(records) if r.kcal is not None), 0.0)
+    min_speed, avg_speed, max_speed = ordered_speeds(
+        held_min_speed(records),
+        distance_m / moving_s if moving_s and has_distance and distance_m > 0 else None,
+        max(speeds) if speeds else None)
     return Summary(
         start_utc=datetime.fromtimestamp(start_t, UTC).isoformat(timespec="seconds"),
         elapsed_s=round(end_t - start_t, 1),
@@ -103,15 +118,15 @@ def summarize(start_t: float, end_t: float, records: list[Record], *,
         distance_m=distance_m,
         ascent_m=round(sum((r.speed_mps or 0) * (r.incline_pct or 0) / 100 for r in moving), 1),
         kcal=kcal,
-        avg_speed_mps=distance_m / moving_s if moving_s and has_distance else None,
-        max_speed_mps=max(speeds) if speeds else None,
+        avg_speed_mps=avg_speed,
+        max_speed_mps=max_speed,
         avg_incline_pct=round(sum(inclines) / len(inclines), 1) if inclines else None,
         max_incline_pct=max(inclines) if inclines else None,
         avg_hr=round(sum(hrs) / len(hrs)) if hrs else None,
         max_hr=max(hrs) if hrs else None,
         min_hr=min(hrs) if hrs else None,
         pause_count=pause_count,
-        min_speed_mps=held_min_speed(records),
+        min_speed_mps=min_speed,
     )
 
 
