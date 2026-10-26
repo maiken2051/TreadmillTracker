@@ -59,15 +59,21 @@ def is_network_mount(path: Path) -> bool:
         next(entries, None)
     if not sys.platform.startswith("linux"):
         return True  # Windows/macOS: a UNC path or a test folder
-    best, fstype = "", ""
     with open("/proc/self/mounts", encoding="utf-8") as f:
-        for line in f:
-            _, mnt, fs, *_ = line.split()
-            mnt = mnt.replace("\\040", " ")
-            if (str(path) == mnt or str(path).startswith(mnt.rstrip("/") + "/")) \
-                    and len(mnt) > len(best):
-                best, fstype = mnt, fs
-    return fstype in _NETWORK_FS
+        return mount_fstype(f.read(), path) in _NETWORK_FS
+
+
+def mount_fstype(mounts: str, path: Path) -> str:
+    """The file system that path is on, from /proc/self/mounts text. Mounts stack: the CIFS
+    share sits on top of its autofs placeholder at the same path, and the later line wins."""
+    best, fstype = "", ""
+    for line in mounts.splitlines():
+        _, mnt, fs, *_ = line.split()
+        mnt = mnt.replace("\\040", " ")
+        if (path.as_posix() == mnt or path.as_posix().startswith(mnt.rstrip("/") + "/")) \
+                and len(mnt) >= len(best):
+            best, fstype = mnt, fs
+    return fstype
 
 
 class Exporter:

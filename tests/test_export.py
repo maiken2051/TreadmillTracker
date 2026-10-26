@@ -9,7 +9,7 @@ import pytest
 from gymtracker.app import App
 from gymtracker.config import Config, ExportConfig
 from gymtracker.display import NullBacklight
-from gymtracker.export import PENDING, Exporter
+from gymtracker.export import PENDING, Exporter, mount_fstype
 from gymtracker.library import Library
 from gymtracker.session import Record, summarize
 from gymtracker.store import Workout
@@ -158,3 +158,18 @@ def test_app_retries_a_pending_export(tmp_path):
     app.tick(app._next_export_retry)
     assert not app.nas_pending and any("nas: up to date" in line for line in lines)
     app.close(0)
+
+
+MOUNTS = r"""/dev/mmcblk0p2 / ext4 rw,noatime 0 0
+systemd-1 /mnt/nas-workouts autofs rw,relatime,fd=82 0 0
+//kabane/Media/Gym\040Tracker /mnt/nas-workouts cifs rw,relatime,vers=3.1.1 0 0
+"""
+
+
+def test_mount_fstype_sees_the_share_on_top_of_its_automount():
+    from pathlib import PurePosixPath as P
+    assert mount_fstype(MOUNTS, P("/mnt/nas-workouts")) == "cifs"
+    assert mount_fstype(MOUNTS, P("/mnt/nas-workouts/archive")) == "cifs"
+    unmounted = "\n".join(MOUNTS.splitlines()[:2])
+    assert mount_fstype(unmounted, P("/mnt/nas-workouts")) == "autofs"
+    assert mount_fstype(MOUNTS, P("/mnt/other")) == "ext4"
