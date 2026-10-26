@@ -31,10 +31,18 @@ def speeds(t_from, t_to, v):
 
 
 def test_seen_then_connected_goes_ready():
-    m, _ = run([(0, "device_seen", HRM)])
+    m, _ = run([(0, "device_seen", TM)])
     assert m.state is S.WAKING
-    m, _ = run([(0, "device_seen", HRM), (1, "device_connected", HRM)])
+    m, _ = run([(0, "device_seen", TM), (1, "device_connected", TM)])
     assert m.state is S.READY
+
+
+def test_only_the_treadmill_wakes():
+    # UI review: the COROS off the arm still advertises and accepts a connection.
+    m, _ = run([(0, "device_seen", HRM), (1, "device_connected", HRM), (100, "tick")])
+    assert m.state is S.IDLE
+    m, _ = run([(0, "device_seen", TM), (1, "device_connected", HRM)])
+    assert m.state is S.READY  # once awake, the strap connecting counts
 
 
 def test_waking_times_out():
@@ -45,9 +53,10 @@ def test_waking_times_out():
 
 
 def test_ready_times_out_without_start():
-    m, _ = run([(0, "device_seen", HRM), (0, "device_connected", HRM), (599, "tick")])
+    awake = [(0, "device_seen", TM), (0, "device_connected", HRM)]
+    m, _ = run(awake + [(599, "tick")])
     assert m.state is S.READY
-    m, _ = run([(0, "device_seen", HRM), (0, "device_connected", HRM), (600, "tick")])
+    m, _ = run(awake + [(600, "tick")])
     assert m.state is S.IDLE
 
 

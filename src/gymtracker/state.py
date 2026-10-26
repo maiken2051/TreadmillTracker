@@ -72,7 +72,10 @@ class Transitions:
     # ------------------------------------------------------------------ device events
 
     def device_seen(self, t: float, device: Device) -> list[Effect]:
-        if self.state is SessionState.IDLE:
+        # Only the treadmill wakes the app: its Bluetooth button is a deliberate start. The
+        # COROS keeps advertising and accepting connections for ~10 min after it comes off
+        # the arm, so the strap is not even connected until the app is awake (UI review).
+        if self.state is SessionState.IDLE and device is Device.TREADMILL:
             self._enter(t, SessionState.WAKING)
         return []
 
@@ -81,6 +84,8 @@ class Transitions:
         if device is Device.TREADMILL:
             self.state_events_seen = False
             self._fast_since = self._still_since = None
+        if self.state is SessionState.IDLE and device is Device.HRM:
+            return []  # left over from the last workout; the treadmill wakes the app
         if self.state in (SessionState.IDLE, SessionState.WAKING, SessionState.READY):
             self._enter(t, SessionState.READY)
         elif self.state is SessionState.FINISHED and device is Device.TREADMILL:

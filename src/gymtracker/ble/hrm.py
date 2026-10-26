@@ -92,14 +92,16 @@ class HrmClient(Link):
     """Subscribes to Heart Rate Measurement and polls Battery Level (read-only on the COROS
     strap). Silences under ~15 s are normal (strap adjusted, brief loss of contact).
 
-    A longer silence gets one reconnect, for a link that BlueZ thinks is up but is dead. If
-    the new link is silent too, the strap is off the arm: it keeps advertising and accepting
-    connections for ~10 min but sends nothing (NAS test, 2026-10-25), and every reconnect
-    lights its LED and wakes the app. So stay connected and wait; the next notification
-    re-arms the reconnect, and the strap drops the link itself when it goes to sleep."""
+    Off the arm the strap keeps advertising and accepting connections for ~10 min but sends
+    nothing (NAS test, 2026-10-25), and every reconnect lights its LED. So a long silence
+    gets one reconnect, and only during a workout (check_silence), for a link that BlueZ
+    thinks is up but is dead. If the new link is silent too, stay connected and wait; the
+    next notification re-arms the reconnect, and the strap drops the link when it sleeps."""
 
-    def __init__(self, on_sample: Callable[[float, HrSample], None], **kwargs) -> None:
+    def __init__(self, on_sample: Callable[[float, HrSample], None],
+                 check_silence: Callable[[], bool] = lambda: True, **kwargs) -> None:
         super().__init__(**kwargs)
+        self.check_silence = check_silence  # the app: only during a workout
         from gymtracker.state import Device  # state.py imports the ble package
         self.device = Device.HRM
         self.on_sample = on_sample
@@ -136,7 +138,7 @@ class HrmClient(Link):
                                   bytes(await client.read_gatt_char(BATTERY_LEVEL_UUID)))
                 except Exception as e:
                     log.warning("hrm: battery read failed: %r", e)
-            if now - self._last_note >= SILENCE_S:
+            if now - self._last_note >= SILENCE_S and self.check_silence():
                 if self._silence_retried:
                     log.info("hrm: still silent after reconnecting; strap not worn? "
                              "staying connected")

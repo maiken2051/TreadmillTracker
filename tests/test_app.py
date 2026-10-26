@@ -100,3 +100,30 @@ def test_backlight_missing_is_a_no_op(tmp_path):
     b = Backlight("auto", tmp_path / "nothing")
     b.set(True)
     assert b.path is None and b.on is True
+
+
+def test_strap_only_connects_once_awake_and_is_released_on_sleep(tmp_path):
+    from types import SimpleNamespace
+
+    from gymtracker.state import Device
+
+    async def go():
+        app, _ = make_app(tmp_path)
+        app.open()
+        released = []
+
+        async def disconnect():
+            released.append(True)
+
+        app.hrm = SimpleNamespace(busy=True, connected=True, battery_pct=None,
+                                  disconnect=disconnect)
+        assert app.wants(Device.TREADMILL) and not app.wants(Device.HRM)
+        app.device_seen(1.0, Device.TREADMILL, "Treadmill 0001")
+        assert app.wants(Device.HRM)
+        app.device_connected(2.0, Device.HRM, "COROS")
+        app.tick(2.0 + app.cfg.session.ready_timeout_s)  # nobody started: back to sleep
+        await asyncio.sleep(0)
+        assert app.state is SessionState.IDLE and released == [True]
+        app.close(0)
+
+    asyncio.run(go())

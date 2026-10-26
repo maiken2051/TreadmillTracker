@@ -290,6 +290,7 @@ class App:
             self.raw = []
             self._close_log()
             self._tm = self._incline = None
+            self._release_strap()
 
     def _save(self, session: Session) -> None:
         s = session.summary()
@@ -364,6 +365,18 @@ class App:
         if self._export_task is not None and not self._export_task.done():
             await asyncio.wait({self._export_task}, timeout=timeout)
 
+    def wants(self, device: Device) -> bool:
+        """Connect to this device now? Asleep, only the treadmill: its Bluetooth button wakes
+        the app, then the strap connects (it is seen again within ~2 s)."""
+        return device is Device.TREADMILL or self.state is not SessionState.IDLE
+
+    def _release_strap(self) -> None:
+        """Asleep: let go of the strap so it can sleep too (and its LED stays off)."""
+        if self.hrm is None or not self.hrm.busy:
+            return
+        with contextlib.suppress(RuntimeError):  # no event loop: replays and tests
+            asyncio.get_running_loop().create_task(self.hrm.disconnect())
+
     def _checkpoint(self, session: Session) -> None:
         try:
             session.save_checkpoint(self.checkpoint_path)
@@ -400,7 +413,7 @@ class App:
 
         def seen(s: Sighting) -> None:
             client = clients[s.device]
-            if client.busy:
+            if client.busy or not self.wants(s.device):
                 return
             self.device_seen(time.time(), s.device, s.name)
             client.offer(s)
@@ -408,7 +421,8 @@ class App:
         scanner = Scanner(self.cfg.hrm, self.cfg.treadmill, seen)
         common = dict(on_raw=self.note, on_connected=self.device_connected,
                       on_disconnected=self.device_disconnected, gate=scanner.pause)
-        self.hrm = clients[Device.HRM] = HrmClient(self.hr, **common)
+        self.hrm = clients[Device.HRM] = HrmClient(
+            self.hr, check_silence=lambda: self.recorder.recording, **common)
         self.treadmill_client = clients[Device.TREADMILL] = TreadmillClient(
             self.treadmill, self.treadmill_state, **common)
         self.open()

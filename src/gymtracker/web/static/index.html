@@ -93,6 +93,8 @@
   #nasLine { font-size: 3.6vh; display: flex; align-items: center; gap: 2vw; min-height: 9vh; }
   #nasLine.ok { color: var(--ok); }
   #nasLine.pending { color: var(--warn); }
+  #finBattery { margin-left: auto; color: var(--dim); }
+  #finBattery.low { color: var(--warn); font-weight: 700; }
   .buttons { display: flex; gap: 2vw; justify-content: flex-end; }
   button { font: inherit; font-size: 4.4vh; font-weight: 700; min-height: 80px;
     height: 13vh; padding: 0 4vw; border-radius: 2vh; border: .4vh solid var(--line);
@@ -148,15 +150,15 @@
 
 <main>
   <section class="screen hidden" id="idle">
-    Sleeping. Put the strap on or press the Bluetooth button on the treadmill.
+    Sleeping. Press the Bluetooth button on the treadmill console to start.
   </section>
 
   <section class="screen hidden" id="waiting">
     <h1>Getting ready</h1>
-    <div class="step" id="stepHrm"><span class="mark">1</span>
-      <span class="what" id="stepHrmText"></span></div>
-    <div class="step" id="stepTm"><span class="mark">2</span>
+    <div class="step" id="stepTm"><span class="mark">1</span>
       <span class="what" id="stepTmText"></span></div>
+    <div class="step" id="stepHrm"><span class="mark">2</span>
+      <span class="what" id="stepHrmText"></span></div>
     <div class="step" id="stepGo"><span class="mark">3</span>
       <span class="what">Press <b>Quick Start</b> on the console
         <span class="sub">Recording starts when the belt does</span></span></div>
@@ -202,7 +204,8 @@
       <div class="tile"><div class="label">pauses</div><div class="v" id="fPauses">–</div></div>
     </div>
     <div id="nasLine"><span id="nasText"></span>
-      <button class="small hidden" id="retryBtn">Retry now</button></div>
+      <button class="small hidden" id="retryBtn">Retry now</button>
+      <span id="finBattery"></span></div>
     <div class="buttons">
       <button class="danger" id="discardBtn">Discard</button>
       <button class="primary" id="doneBtn">Done</button>
@@ -257,16 +260,16 @@ function render(st) {
   } else if (state === "waking" || state === "ready") {
     show("waiting");
     const hrmOk = hrm.connected, tmOk = tm.connected;
-    $("stepHrm").className = "step " + (hrmOk ? "done" : "next");
-    $("stepHrm").querySelector(".mark").textContent = hrmOk ? "✓" : "1";
-    $("stepHrmText").innerHTML = hrmOk
-      ? `Heart-rate strap connected<span class="sub">${hrm.battery_pct != null ? "battery " + hrm.battery_pct + "%" : ""}</span>`
-      : `Put the <b>heart-rate strap</b> on<span class="sub">It connects by itself</span>`;
-    $("stepTm").className = "step " + (tmOk ? "done" : (hrmOk ? "next" : "next"));
-    $("stepTm").querySelector(".mark").textContent = tmOk ? "✓" : "2";
+    $("stepTm").className = "step " + (tmOk ? "done" : "next");
+    $("stepTm").querySelector(".mark").textContent = tmOk ? "✓" : "1";
     $("stepTmText").innerHTML = tmOk
       ? `${tm.name || "Treadmill"} connected<span class="sub">&nbsp;</span>`
-      : `Press the <b>Bluetooth</b> button on the treadmill console<span class="sub">It is only visible for about a minute</span>`;
+      : `Connecting to the treadmill…<span class="sub">If it doesn't connect, press the console's <b>Bluetooth</b> button again</span>`;
+    $("stepHrm").className = "step " + (hrmOk ? "done" : "next");
+    $("stepHrm").querySelector(".mark").textContent = hrmOk ? "✓" : "2";
+    $("stepHrmText").innerHTML = hrmOk
+      ? `Heart-rate strap connected<span class="sub">${hrm.battery_pct != null ? "battery " + hrm.battery_pct + "%" : ""}</span>`
+      : `Looking for the <b>heart-rate strap</b><span class="sub">Put it on; it connects by itself</span>`;
     $("stepGo").className = "step " + (tmOk ? "next" : "later");
     $("waitHr").textContent = st.hr ? `Heart rate ${st.hr} bpm` : "";
   } else if (state === "recording" || state === "paused") {
@@ -306,6 +309,9 @@ function render(st) {
       : nas.pending ? "Not on the NAS yet. Retrying every 10 minutes." : "✓ Copied to the NAS";
     $("retryBtn").classList.toggle("hidden", !(nas.enabled && nas.pending));
     $("discardBtn").classList.toggle("hidden", !saved);
+    const bat = hrm.battery_pct;
+    $("finBattery").className = low ? "low" : "";
+    $("finBattery").textContent = bat == null ? "" : `Strap battery ${bat}%` + (low ? " · charge it" : "");
   }
 }
 

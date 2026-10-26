@@ -244,6 +244,22 @@ def test_hrm_strap_off_the_arm_is_not_reconnected_again(monkeypatch):
         "connected", "disconnected", "connected", "disconnected"]  # the last is close()
 
 
+def test_hrm_silence_outside_a_workout_is_left_alone(monkeypatch):
+    monkeypatch.setattr(hrm_mod, "SILENCE_S", 0.0)
+
+    async def go():
+        ev = Events()
+        c = HrmClient(lambda t, s: None, check_silence=lambda: False, on_raw=ev.raw,
+                      on_connected=ev.connected, on_disconnected=ev.disconnected,
+                      client_factory=FakeBleakClient, clock=lambda: 1000.0)
+        c.offer(sighting())
+        await settle()
+        assert c.connected  # silent, but not in a workout: no reconnect, no LED
+        await c.close()
+
+    asyncio.run(go())
+
+
 def test_treadmill_reads_state_after_connect_and_never_writes():
     async def go():
         ev = Events()
