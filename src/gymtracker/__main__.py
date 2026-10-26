@@ -68,6 +68,9 @@ def main(argv: list[str] | None = None) -> int:
         return _replay(cfg, args)
     if args.command == "run":
         from gymtracker.app import run
+        # Status lines must reach `| tee` as they happen, not in 8 KB blocks.
+        if hasattr(sys.stdout, "reconfigure"):
+            sys.stdout.reconfigure(line_buffering=True)
         return run(cfg, args.run_replay, args.speed)
     if args.command == "import-fit":
         return _import_fit(cfg, args)

@@ -85,6 +85,7 @@ def test_unknown_or_wrong_length_frame(hex_data):
 
 
 @pytest.mark.parametrize("hex_data, state", [
+    ("01", TreadmillState.IDLE),
     ("0a", TreadmillState.RUNNING),
     ("02", TreadmillState.PAUSED_OR_STOPPED),
     ("80", TreadmillState.ENDED),
