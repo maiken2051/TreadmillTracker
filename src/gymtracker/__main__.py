@@ -6,6 +6,7 @@
     gymtracker import-fit FOLDER --label NAME        import old .fit workouts
     gymtracker sheet [-o FILE]                       rebuild Workouts.xlsx
     gymtracker list                                  list stored workouts
+    gymtracker export                                copy everything to the NAS now
     gymtracker rebuild-db --out FILE [--reparse]     new database from the archive
 
 `run` prints state changes and a 1 Hz status line (the screen UI arrives in Phase 6).
@@ -48,6 +49,7 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("sheet", help="rebuild the spreadsheet")
     p.add_argument("-o", "--out", type=Path)
     sub.add_parser("list", help="list stored workouts")
+    sub.add_parser("export", help="copy the archive, spreadsheet and database to the NAS")
     p = sub.add_parser("rebuild-db", help="build a new database from the archive")
     p.add_argument("--out", type=Path, required=True, help="new database file (must not exist)")
     p.add_argument("--archive", type=Path, help="archive folder (default: <data_dir>/archive)")
@@ -80,6 +82,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "list":
         return _list(cfg)
+    if args.command == "export":
+        return _export(cfg)
     if args.command == "rebuild-db":
         return _rebuild(cfg, args)
     ap.print_help()
@@ -134,6 +138,19 @@ def _list(cfg: Config) -> int:
             moving = int(s.moving_s)
             print(f"{w.id:4}  {w.start_local:%Y-%m-%d %H:%M}  {moving // 60:3}:{moving % 60:02d}"
                   f"  {dist}  HR {s.avg_hr or '-':>3}  {w.source}")
+    return 0
+
+
+def _export(cfg: Config) -> int:
+    from gymtracker.export import Exporter
+    exporter = Exporter(cfg.storage.data_dir, cfg.export)
+    result = exporter.export()
+    for name in result.copied:
+        print(f"  {name}")
+    if not result.ok:
+        print(f"NOT copied to {exporter.target}: {result.error} (queued for retry)")
+        return 1
+    print(f"{exporter.target} is up to date ({len(result.copied)} files copied)")
     return 0
 
 

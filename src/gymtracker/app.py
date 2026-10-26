@@ -1,9 +1,11 @@
-"""The app: scanner -> clients -> Recorder -> library, plus the backlight and a status line.
+"""The app: scanner -> clients -> Recorder -> library -> NAS, plus the backlight and a
+status line.
 
 The App has the Recorder's event methods (device_seen, hr, tick, ...) and adds the side
-effects around them: the raw notification log, checkpoints, saving, the backlight and the
-headless status output. run_ble() feeds it from the real devices; run_replay() feeds it
-from a capture through the fake clients, so the whole app runs on Windows.
+effects around them: the raw notification log, checkpoints, saving, the NAS export, the
+backlight and the headless status output. run_ble() feeds it from the real devices;
+run_replay() feeds it from a capture through the fake clients, so the whole app runs on
+Windows.
 
 Raw notifications go to <data_dir>/logs/<wake time>.jsonl (one file per wake-up, in the
 fixture format, so `gymtracker --replay` can read it), and the ones since the last saved
@@ -27,6 +29,7 @@ from gymtracker.ble.hrm import HrSample
 from gymtracker.ble.treadmill import InclineSample, TreadmillSample, TreadmillState
 from gymtracker.config import Config
 from gymtracker.display import Backlight, NullBacklight
+from gymtracker.export import RETRY_EVERY_S, Exporter, ExportResult
 from gymtracker.library import Library
 from gymtracker.recorder import Recorder
 from gymtracker.session import Session
@@ -40,7 +43,8 @@ CHECKPOINT = "current-workout.json"
 
 class App:
     def __init__(self, cfg: Config, *, backlight: Backlight | NullBacklight | None = None,
-                 out: Callable[[str], None] = print, status_every_s: float = 1.0) -> None:
+                 out: Callable[[str], None] = print, status_every_s: float = 1.0,
+                 exporter: Exporter | None = None) -> None:
         self.cfg = cfg
         self.data_dir = Path(cfg.storage.data_dir).expanduser()
         self.log_dir = self.data_dir / LOG_DIR
@@ -48,6 +52,11 @@ class App:
         self.backlight = backlight if backlight is not None else Backlight(cfg.display.backlight)
         self.out = out
         self.status_every_s = status_every_s
+        self.exporter = exporter  # None: no NAS copy (replays, tests)
+        self._export_task: asyncio.Task | None = None
+        self._export_again = False
+        self._next_export_retry = 0.0  # a pending export from a previous run retries at once
+        self.nas_pending = False
         self.imperial = cfg.user.units == "imperial"
         self.recorder = Recorder(cfg.session, on_save=self._save, on_discard=self._discard,
                                  on_checkpoint=self._checkpoint, on_change=self._changed)
@@ -78,6 +87,7 @@ class App:
                 f"checkpoint-{datetime.now():%Y%m%d-%H%M%S}.json")
             self.checkpoint_path.rename(kept)
             log.warning("unfinished workout from a previous run kept as %s", kept)
+        self.nas_pending = self.exporter is not None and self.exporter.pending is not None
         self.backlight.set(False)
 
     def close(self, t: float) -> None:
@@ -122,6 +132,9 @@ class App:
 
     def tick(self, t: float) -> None:
         self.recorder.tick(t)
+        if self.nas_pending and t >= self._next_export_retry:
+            self._next_export_retry = t + RETRY_EVERY_S
+            self.start_export()
         if self.state is not SessionState.IDLE and t - self._last_status >= self.status_every_s:
             self._last_status = t
             self.out(self.status_line(t))
@@ -156,6 +169,8 @@ class App:
             if client is not None and client.connected:
                 battery = getattr(client, "battery_pct", None)
                 links.append(f"{name} {battery}%" if battery is not None else name)
+        if self.nas_pending:
+            links.append("nas pending")
         if links:
             parts.append("| " + " ".join(links))
         return "  ".join(parts)
@@ -195,6 +210,7 @@ class App:
             return
         self.raw = []
         self._remove_checkpoint()
+        self.start_export()
 
     def _discard(self, session: Session) -> None:
         workout_id = self.saved.pop(id(session), None)
@@ -202,10 +218,49 @@ class App:
             self.library.delete(workout_id)
             self.library.write_sheet()
             self.out(f"deleted workout {workout_id}")
+            self.start_export()
         else:
             self.out(f"discarded: shorter than {self.cfg.session.min_session_s:.0f} s")
         self.raw = []
         self._remove_checkpoint()
+
+    # ------------------------------------------------------------------ NAS export
+
+    def start_export(self) -> None:
+        """Copy to the NAS in a worker thread (it blocks on the network). Without a running
+        event loop (tests), copy now."""
+        if self.exporter is None:
+            return
+        if self._export_task is not None and not self._export_task.done():
+            self._export_again = True  # a newer workout arrived mid-copy
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            self._exported(self.exporter.export())
+            return
+        self._export_task = loop.create_task(self._export())
+
+    async def _export(self) -> None:
+        while True:
+            self._export_again = False
+            self._exported(await asyncio.to_thread(self.exporter.export))
+            if not self._export_again:
+                return
+
+    def _exported(self, result: ExportResult) -> None:
+        self.nas_pending = not result.ok
+        self._next_export_retry = time.time() + RETRY_EVERY_S
+        now = _clock(time.time())
+        if result.ok:
+            self.out(f"{now} nas: up to date ({len(result.copied)} files copied)")
+        else:
+            self.out(f"{now} nas: NOT copied, will retry every "
+                     f"{RETRY_EVERY_S / 60:.0f} min ({result.error})")
+
+    async def wait_export(self, timeout: float = 60.0) -> None:
+        if self._export_task is not None and not self._export_task.done():
+            await asyncio.wait({self._export_task}, timeout=timeout)
 
     def _checkpoint(self, session: Session) -> None:
         try:
@@ -265,6 +320,7 @@ class App:
                 self.tick(time.time())
         finally:
             self.close(time.time())
+            await self.wait_export()
             for client in clients.values():
                 await client.close()
             await scanner.stop()
@@ -279,6 +335,7 @@ class App:
                                      on_note=lambda n: self.note(n.t, n.dev, n.char, n.data))
         finally:
             self.close(notes[-1].t if notes else time.time())
+            await self.wait_export()
 
 
 def run(cfg: Config, replay: Path | None = None, speed: float = 1.0) -> int:
@@ -295,7 +352,8 @@ def run(cfg: Config, replay: Path | None = None, speed: float = 1.0) -> int:
         for sig in (signal.SIGINT, signal.SIGTERM):
             with contextlib.suppress(NotImplementedError):  # Windows
                 loop.add_signal_handler(sig, stop.set)
-        await App(cfg).run_ble(stop)
+        exporter = Exporter(cfg.storage.data_dir, cfg.export) if cfg.export.smb_mount else None
+        await App(cfg, exporter=exporter).run_ble(stop)
 
     with contextlib.suppress(KeyboardInterrupt):
         asyncio.run(main())

@@ -29,7 +29,7 @@ data_dir = "~/workouts"    # gymtracker.db, archive/, logs/
 
 [export]
 smb_mount = "/mnt/nas-workouts"
-smb_subdir = "GymTracker"
+smb_subdir = ""            # folder inside the mount; "" when the mount is the folder itself
 spreadsheet = "Workouts.xlsx"
 
 [display]

@@ -47,8 +47,8 @@ class StorageConfig:
 
 @dataclass
 class ExportConfig:
-    smb_mount: str = "/mnt/nas-workouts"
-    smb_subdir: str = "GymTracker"
+    smb_mount: str = "/mnt/nas-workouts"  # "" turns the NAS copy off
+    smb_subdir: str = ""  # folder inside the mount; "" when the mount is the folder itself
     spreadsheet: str = "Workouts.xlsx"
 
 
