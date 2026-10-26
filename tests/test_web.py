@@ -101,3 +101,28 @@ def test_server_routes_and_push(tmp_path):
             app.close(0)
 
     asyncio.run(go())
+
+
+def test_stop_is_quick_with_a_page_that_never_answers(tmp_path):
+    import socket
+    import time
+
+    async def go():
+        app = make_app(tmp_path)
+        app.open()
+        server = WebServer(app, port=0, host="127.0.0.1")
+        await server.start()
+        sock = socket.create_connection(("127.0.0.1", server.port))
+        sock.sendall(b"GET /ws HTTP/1.1\r\nHost: x\r\nUpgrade: websocket\r\n"
+                     b"Connection: Upgrade\r\nSec-WebSocket-Version: 13\r\n"
+                     b"Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n")
+        await asyncio.sleep(0.3)  # upgraded; this client never reads or answers again
+        assert len(server.sockets) == 1
+        t0 = time.monotonic()
+        await server.stop()
+        elapsed = time.monotonic() - t0
+        sock.close()
+        app.close(0)
+        return elapsed
+
+    assert asyncio.run(go()) < 5

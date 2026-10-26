@@ -464,8 +464,12 @@ def run(cfg: Config, replay: Path | None = None, speed: float = 1.0) -> int:
         app.out(f"page: http://localhost:{cfg.web.port}/")
         try:
             if replay is not None:
-                await app.run_replay(replay, speed)
+                # Ctrl-C/SIGTERM stops a replay mid-capture too (it saves what it has).
+                task = asyncio.create_task(app.run_replay(replay, speed))
                 await stop.wait()
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
             else:
                 await app.run_ble(stop)
         finally:

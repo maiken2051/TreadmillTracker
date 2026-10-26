@@ -26,12 +26,16 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 STATIC = Path(__file__).parent / "static"
+# A page that went away without closing (a phone asleep) may never answer a close; keep
+# stopping quick instead of aiohttp's 10 s per socket plus 60 s for open connections.
+CLOSE_TIMEOUT_S = 1.0
+SHUTDOWN_TIMEOUT_S = 2.0
 
 
 class WebServer:
     def __init__(self, app: App, port: int = 8080, host: str = "0.0.0.0") -> None:
         self.app = app
-        self.port = port
+        self.port = port  # 0: any free port (tests); start() sets the real one
         self.host = host
         self.sockets: set[web.WebSocketResponse] = set()
         self._dirty = asyncio.Event()
@@ -53,9 +57,12 @@ class WebServer:
     async def start(self) -> None:
         self.app.listeners.append(self._dirty.set)
         self._sender = asyncio.create_task(self._send_loop())
-        self._runner = web.AppRunner(self.make_app(), access_log=None)
+        self._runner = web.AppRunner(self.make_app(), access_log=None,
+                                     shutdown_timeout=SHUTDOWN_TIMEOUT_S)
         await self._runner.setup()
-        await web.TCPSite(self._runner, self.host, self.port).start()
+        site = web.TCPSite(self._runner, self.host, self.port)
+        await site.start()
+        self.port = site._server.sockets[0].getsockname()[1]
         log.info("web: http://%s:%d/", self.host, self.port)
 
     async def stop(self) -> None:
@@ -65,8 +72,8 @@ class WebServer:
             self._sender.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await self._sender
-        for ws in list(self.sockets):
-            await ws.close()
+        await asyncio.gather(*(ws.close() for ws in list(self.sockets)),
+                             return_exceptions=True)
         if self._runner is not None:
             await self._runner.cleanup()
 
@@ -92,7 +99,7 @@ class WebServer:
         return web.json_response(self.app.snapshot())
 
     async def _ws(self, request: web.Request) -> web.WebSocketResponse:
-        ws = web.WebSocketResponse(heartbeat=10)
+        ws = web.WebSocketResponse(heartbeat=10, timeout=CLOSE_TIMEOUT_S)
         await ws.prepare(request)
         self.sockets.add(ws)
         try:
