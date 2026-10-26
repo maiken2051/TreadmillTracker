@@ -43,6 +43,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--speed", type=float, default=1.0,
                    help="with --replay: times real time (0 = as fast as possible)")
     p.add_argument("-v", "--verbose", action="store_true", help="log connection details")
+    p.add_argument("-q", "--quiet", action="store_true",
+                   help="no 1 Hz status line (the service: the journal gets state changes)")
     p = sub.add_parser("import-fit", help="import a folder of .fit workouts")
     p.add_argument("folder", type=Path)
     p.add_argument("--label", required=True, help="source label, e.g. walkingtall")
@@ -73,7 +75,7 @@ def main(argv: list[str] | None = None) -> int:
         # Status lines must reach `| tee` as they happen, not in 8 KB blocks.
         if hasattr(sys.stdout, "reconfigure"):
             sys.stdout.reconfigure(line_buffering=True)
-        return run(cfg, args.run_replay, args.speed)
+        return run(cfg, args.run_replay, args.speed, quiet=args.quiet)
     if args.command == "import-fit":
         return _import_fit(cfg, args)
     if args.command == "sheet":

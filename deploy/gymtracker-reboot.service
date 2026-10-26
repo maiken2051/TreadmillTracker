@@ -1,0 +1,6 @@
+[Unit]
+Description=Gym Tracker: reboot for updates if no workout is running
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/gymtracker-reboot-if-idle

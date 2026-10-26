@@ -3,3 +3,6 @@
 *.jpg binary
 *.fit binary
 *.gz binary
+# Files that run on the Pi keep Unix line endings.
+*.sh text eol=lf
+deploy/* text eol=lf

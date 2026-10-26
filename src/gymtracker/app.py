@@ -60,6 +60,7 @@ class App:
         self.nas_error = ""
         self.listeners: list[Callable[[], None]] = []  # the web server: "state changed"
         self.connected: dict[Device, bool] = {d: False for d in Device}
+        self.started = time.time()  # the page reloads when this changes (a new version)
         self.last_tick: float | None = None  # replay time, so a stopped replay ends there
         self.imperial = cfg.user.units == "imperial"
         self.recorder = Recorder(cfg.session, on_save=self._save, on_discard=self._discard,
@@ -196,6 +197,7 @@ class App:
         tm = self._tm
         snap: dict = {
             "state": self.state.value,
+            "started": self.started,
             "clock": datetime.fromtimestamp(t).strftime("%H:%M"),
             "units": {"speed": "mph" if imperial else "km/h", "distance": "mi" if imperial
                       else "km", "pace": "/mi" if imperial else "/km"},
@@ -456,7 +458,8 @@ class App:
             await self.wait_export()
 
 
-def run(cfg: Config, replay: Path | None = None, speed: float = 1.0) -> int:
+def run(cfg: Config, replay: Path | None = None, speed: float = 1.0,
+        quiet: bool = False) -> int:
     """`gymtracker run`: the app in the foreground, printing state changes and status, with
     the touchscreen page on [web] port. A replay keeps serving the page after the capture
     ends, until Ctrl-C, so the FINISHED screen can be looked at."""
@@ -474,7 +477,8 @@ def run(cfg: Config, replay: Path | None = None, speed: float = 1.0) -> int:
         else:
             exporter = (Exporter(cfg.storage.data_dir, cfg.export) if cfg.export.smb_mount
                         else None)
-            app = App(cfg, exporter=exporter)
+            app = App(cfg, exporter=exporter,
+                      status_every_s=float("inf") if quiet else 1.0)
         # A replay is for testing on this machine: localhost only (no firewall prompt).
         server = WebServer(app, cfg.web.port,
                            host="127.0.0.1" if replay is not None else "0.0.0.0")

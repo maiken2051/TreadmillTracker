@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=Gym Tracker kiosk
+Comment=The Gym Tracker page, full screen on the touchscreen
+Exec=@HOME@/.local/bin/gymtracker-kiosk
+X-GNOME-Autostart-enabled=true

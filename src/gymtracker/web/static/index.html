@@ -19,6 +19,7 @@
     overflow: hidden; }
   body { display: flex; flex-direction: column; }
   .hidden { display: none !important; }
+  html.kiosk, html.kiosk * { cursor: none !important; }  /* the Pi's screen: ?kiosk */
 
   /* top bar */
   header { display: flex; align-items: center; gap: 1.6vw; padding: 1.4vh 2vw;
@@ -221,6 +222,7 @@ const $ = (id) => document.getElementById(id);
 const BADGE = { idle: "Sleeping", waking: "Waking up", ready: "Ready", recording: "Recording",
                 paused: "Paused", finished: "Finished" };
 let last = null;
+if (new URLSearchParams(location.search).has("kiosk")) document.documentElement.classList.add("kiosk");
 
 function fmtTime(s) {
   if (s == null) return "–";
@@ -237,6 +239,7 @@ function show(id) {
 }
 
 function render(st) {
+  if (last && last.started !== st.started) { location.reload(); return; }  // app restarted
   last = st;
   const state = st.state;
   $("badge").className = state;
