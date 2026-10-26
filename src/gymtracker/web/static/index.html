@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gym Tracker</title>
+<style>
+  /* Touchscreen: 1280x720 landscape, read from ~1 m while walking. Sizes are in vh/vw so
+     the same page also fits a phone. Dark, high contrast; buttons >= 80 px tall. */
+  :root {
+    --bg: #000; --panel: #12161c; --line: #262d36; --text: #f2f5f8; --dim: #8a96a3;
+    --ok: #3ddc84; --warn: #ffb020; --bad: #ff4d4d; --rec: #ff3b3b; --accent: #4aa3ff;
+    --z0: #9aa7b4; --z1: #4aa3ff; --z2: #3ddc84; --z3: #ffd23f; --z4: #ff8c42; --z5: #ff4d4d;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font-family: system-ui, "Noto Sans", "DejaVu Sans", sans-serif;
+    font-variant-numeric: tabular-nums; -webkit-user-select: none; user-select: none;
+    overflow: hidden; }
+  body { display: flex; flex-direction: column; }
+  .hidden { display: none !important; }
+
+  /* top bar */
+  header { display: flex; align-items: center; gap: 1.6vw; padding: 1.4vh 2vw;
+    height: 9vh; min-height: 52px; border-bottom: 1px solid var(--line); font-size: 3.4vh; }
+  #badge { font-weight: 700; letter-spacing: .02em; display: flex; align-items: center;
+    gap: .6vw; }
+  #badge .dot { width: 2.4vh; height: 2.4vh; border-radius: 50%; background: var(--dim); }
+  #badge.recording .dot { background: var(--rec); animation: pulse 1.6s infinite; }
+  #badge.paused .dot { background: var(--warn); }
+  #badge.ready .dot, #badge.finished .dot { background: var(--ok); }
+  @keyframes pulse { 50% { opacity: .25; } }
+  #clock { margin-left: auto; color: var(--dim); }
+  .chips { display: flex; gap: 1vw; }
+  .chip { display: flex; align-items: center; gap: .5vw; padding: .5vh 1vw;
+    border: 1px solid var(--line); border-radius: 99px; color: var(--dim);
+    font-size: 2.8vh; white-space: nowrap; }
+  .chip .dot { width: 1.6vh; height: 1.6vh; border-radius: 50%; background: #444; }
+  .chip.on { color: var(--text); }
+  .chip.on .dot { background: var(--ok); }
+  .chip.low { color: #000; background: var(--warn); border-color: var(--warn); }
+  .chip.low .dot { background: #000; }
+  .chip.nas { color: #000; background: var(--warn); border-color: var(--warn); }
+
+  main { flex: 1; display: flex; min-height: 0; }
+  section.screen { flex: 1; display: flex; min-height: 0; }
+
+  /* recording / paused */
+  #live { gap: 1.6vw; padding: 2vh 2vw; }
+  #hrPanel { flex: 0 0 40%; display: flex; flex-direction: column; justify-content: center;
+    align-items: center; border-radius: 2vh; background: var(--panel);
+    border: .6vh solid var(--z0); transition: border-color .4s; }
+  #hrValue { font-size: 34vh; font-weight: 800; line-height: .9; color: var(--z0);
+    letter-spacing: -.03em;
+    transition: color .4s; }
+  #hrLabel { font-size: 4.2vh; color: var(--dim); margin-top: 1vh; }
+  #liveRight { flex: 1; display: flex; flex-direction: column; gap: 1.6vh; min-width: 0; }
+  #timeBox { background: var(--panel); border-radius: 2vh; padding: 1.2vh 1.6vw;
+    display: flex; align-items: center; justify-content: space-between; gap: 2vw; }
+  #timeValue { font-size: 17vh; font-weight: 800; line-height: 1; }
+  .label { font-size: 3.2vh; color: var(--dim); }
+  .tiles { flex: 1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.6vh;
+    min-height: 0; }
+  .tile { background: var(--panel); border-radius: 2vh; padding: 1.2vh 1.6vw;
+    display: flex; flex-direction: column; justify-content: center; min-width: 0; }
+  .tile .v { font-size: 10vh; font-weight: 700; line-height: 1; white-space: nowrap; }
+  .tile .v small { font-size: 4vh; font-weight: 500; color: var(--dim); margin-left: .4vw; }
+  #pausedNote { color: var(--warn); }
+
+  /* waiting */
+  #waiting { flex-direction: column; justify-content: center; padding: 3vh 6vw; gap: 3vh; }
+  #waiting h1 { margin: 0; font-size: 7vh; }
+  .step { display: flex; align-items: center; gap: 2vw; font-size: 4.6vh; padding: 2vh 2vw;
+    background: var(--panel); border-radius: 2vh; }
+  .step .mark { width: 6vh; height: 6vh; border-radius: 50%; flex: 0 0 auto;
+    border: .5vh solid var(--dim); display: grid; place-items: center; font-size: 3.6vh;
+    font-weight: 800; }
+  .step.done .mark { background: var(--ok); border-color: var(--ok); color: #000; }
+  .step.next .mark { border-color: var(--accent); color: var(--accent); }
+  .step .what { flex: 1; }
+  .step .sub { display: block; font-size: 3.2vh; color: var(--dim); margin-top: .4vh; }
+  .step.next .what { color: var(--text); }
+  .step.later { opacity: .45; }
+  #waitHr { font-size: 4.6vh; color: var(--dim); }
+
+  /* finished */
+  #finished { flex-direction: column; padding: 2.4vh 2vw; gap: 2vh; }
+  #finished h1 { margin: 0; font-size: 6vh; display: flex; align-items: baseline; gap: 2vw; }
+  #finished h1 .label { font-size: 3.4vh; }
+  #finished .tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  #finished .tile .v { font-size: 8.5vh; }
+  .tile .v small.sep { font-size: 5vh; margin: 0 .5vw; color: var(--dim); }
+  #nasLine { font-size: 3.6vh; display: flex; align-items: center; gap: 2vw; min-height: 9vh; }
+  #nasLine.ok { color: var(--ok); }
+  #nasLine.pending { color: var(--warn); }
+  .buttons { display: flex; gap: 2vw; justify-content: flex-end; }
+  button { font: inherit; font-size: 4.4vh; font-weight: 700; min-height: 80px;
+    height: 13vh; padding: 0 4vw; border-radius: 2vh; border: .4vh solid var(--line);
+    background: var(--panel); color: var(--text); touch-action: manipulation; }
+  button:active { filter: brightness(1.4); }
+  button.primary { background: var(--ok); border-color: var(--ok); color: #000; }
+  button.danger.armed, button.end.armed { background: var(--bad); border-color: var(--bad);
+    color: #000; }
+  button.small { height: 9vh; min-height: 64px; font-size: 3.4vh; padding: 0 2.4vw; }
+  #endBtn { flex: 0 0 auto; }
+
+  /* idle and lost connection */
+  #idle { justify-content: center; align-items: center; color: var(--dim); font-size: 4vh;
+    text-align: center; padding: 0 8vw; }
+  #offline { position: fixed; inset: 0; background: rgba(0,0,0,.82); display: grid;
+    place-items: center; font-size: 5vh; color: var(--warn); }
+
+  /* phone: portrait */
+  @media (orientation: portrait) {
+    header { font-size: 4.4vw; height: auto; flex-wrap: wrap; gap: 2vw; padding: 1.4vh 3vw; }
+    .chip { font-size: 3.6vw; padding: .4vh 2vw; }
+    #live { flex-direction: column; padding: 1.4vh 3vw; gap: 1.4vh; }
+    #hrPanel { flex: 0 0 30%; }
+    #hrValue { font-size: 34vw; }
+    #hrLabel { font-size: 4.6vw; }
+    #timeValue { font-size: 16vw; }
+    .label { font-size: 3.8vw; }
+    .tile { padding: 1vh 3vw; }
+    .tile .v { font-size: 9vw; }
+    .tile .v small { font-size: 4.2vw; }
+    #waiting h1 { font-size: 8vw; }
+    .step { font-size: 4.6vw; }
+    .step .sub { font-size: 3.6vw; }
+    #finished { padding: 1.4vh 3vw; }
+    #finished h1 { font-size: 7vw; flex-wrap: wrap; }
+    #finished .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    #finished .tile .v { font-size: 7.5vw; }
+    #nasLine { font-size: 4vw; }
+    button { height: 8vh; min-height: 64px; font-size: 5vw; padding: 0 5vw; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div id="badge"><span class="dot"></span><span id="badgeText">Connecting…</span></div>
+  <div class="chips">
+    <div class="chip" id="hrmChip"><span class="dot"></span><span id="hrmText">Strap</span></div>
+    <div class="chip" id="tmChip"><span class="dot"></span><span id="tmText">Treadmill</span></div>
+    <div class="chip nas hidden" id="nasChip">Not on NAS yet</div>
+  </div>
+  <div id="clock"></div>
+</header>
+
+<main>
+  <section class="screen hidden" id="idle">
+    Sleeping. Put the strap on or press the Bluetooth button on the treadmill.
+  </section>
+
+  <section class="screen hidden" id="waiting">
+    <h1>Getting ready</h1>
+    <div class="step" id="stepHrm"><span class="mark">1</span>
+      <span class="what" id="stepHrmText"></span></div>
+    <div class="step" id="stepTm"><span class="mark">2</span>
+      <span class="what" id="stepTmText"></span></div>
+    <div class="step" id="stepGo"><span class="mark">3</span>
+      <span class="what">Press <b>Quick Start</b> on the console
+        <span class="sub">Recording starts when the belt does</span></span></div>
+    <div id="waitHr"></div>
+  </section>
+
+  <section class="screen hidden" id="live">
+    <div id="hrPanel">
+      <div id="hrValue">–</div>
+      <div id="hrLabel">bpm</div>
+    </div>
+    <div id="liveRight">
+      <div id="timeBox">
+        <div><div class="label">time <span id="pausedNote" class="hidden">· paused</span></div>
+          <div id="timeValue">0:00</div></div>
+        <button class="end" id="endBtn">End</button>
+      </div>
+      <div class="tiles">
+        <div class="tile"><div class="label">speed <span id="incline"></span></div>
+          <div class="v"><span id="speed">–</span><small id="speedUnit"></small></div></div>
+        <div class="tile"><div class="label">distance</div>
+          <div class="v"><span id="distance">–</span><small id="distUnit"></small></div></div>
+        <div class="tile"><div class="label">pace</div>
+          <div class="v"><span id="pace">–</span><small id="paceUnit"></small></div></div>
+        <div class="tile"><div class="label">calories</div>
+          <div class="v"><span id="kcal">–</span><small>kcal</small></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="screen hidden" id="finished">
+    <h1><span id="finTitle">Workout saved</span><span class="label" id="finReason"></span></h1>
+    <div class="tiles">
+      <div class="tile"><div class="label">time</div><div class="v" id="fTime">–</div></div>
+      <div class="tile"><div class="label">distance</div>
+        <div class="v"><span id="fDist">–</span><small id="fDistUnit"></small></div></div>
+      <div class="tile"><div class="label">calories</div>
+        <div class="v"><span id="fKcal">–</span><small>kcal</small></div></div>
+      <div class="tile"><div class="label">heart rate min / avg / max</div>
+        <div class="v" id="fHr">–</div></div>
+      <div class="tile"><div class="label" id="fSpeedLabel">speed min / avg / max</div>
+        <div class="v" id="fSpeed">–</div></div>
+      <div class="tile"><div class="label">pauses</div><div class="v" id="fPauses">–</div></div>
+    </div>
+    <div id="nasLine"><span id="nasText"></span>
+      <button class="small hidden" id="retryBtn">Retry now</button></div>
+    <div class="buttons">
+      <button class="danger" id="discardBtn">Discard</button>
+      <button class="primary" id="doneBtn">Done</button>
+    </div>
+  </section>
+</main>
+
+<div id="offline" class="hidden">Lost contact with the tracker. Reconnecting…</div>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const BADGE = { idle: "Sleeping", waking: "Waking up", ready: "Ready", recording: "Recording",
+                paused: "Paused", finished: "Finished" };
+let last = null;
+
+function fmtTime(s) {
+  if (s == null) return "–";
+  s = Math.max(0, Math.round(s));
+  const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), sec = s % 60;
+  const mm = h ? String(m).padStart(2, "0") : String(m);
+  return (h ? h + ":" : "") + mm + ":" + String(sec).padStart(2, "0");
+}
+const num = (v, d) => v == null ? "–" : Number(v).toFixed(d);
+const trio = (a, b, c, d) => [a, b, c].map((v) => num(v, d)).join('<small class="sep">/</small>');
+
+function show(id) {
+  for (const s of document.querySelectorAll("section.screen")) s.classList.toggle("hidden", s.id !== id);
+}
+
+function render(st) {
+  last = st;
+  const state = st.state;
+  $("badge").className = state;
+  $("badgeText").textContent = BADGE[state] || state;
+  $("clock").textContent = st.clock;
+
+  const hrm = st.hrm, tm = st.treadmill;
+  const low = hrm.battery_pct != null && hrm.battery_pct <= 20;
+  $("hrmChip").className = "chip" + (hrm.connected ? " on" : "") + (low ? " low" : "");
+  $("hrmText").textContent = "Strap" + (hrm.battery_pct != null ? " " + hrm.battery_pct + "%" : "")
+    + (low ? " · charge me" : "");
+  $("tmChip").className = "chip" + (tm.connected ? " on" : "");
+  $("tmText").textContent = tm.name || "Treadmill";
+  $("nasChip").classList.toggle("hidden", !(st.nas.enabled && st.nas.pending));
+
+  const zone = st.hr_zone == null ? 0 : st.hr_zone;
+  const zcol = `var(--z${zone})`;
+
+  if (state === "idle") {
+    show("idle");
+  } else if (state === "waking" || state === "ready") {
+    show("waiting");
+    const hrmOk = hrm.connected, tmOk = tm.connected;
+    $("stepHrm").className = "step " + (hrmOk ? "done" : "next");
+    $("stepHrm").querySelector(".mark").textContent = hrmOk ? "✓" : "1";
+    $("stepHrmText").innerHTML = hrmOk
+      ? `Heart-rate strap connected<span class="sub">${hrm.battery_pct != null ? "battery " + hrm.battery_pct + "%" : ""}</span>`
+      : `Put the <b>heart-rate strap</b> on<span class="sub">It connects by itself</span>`;
+    $("stepTm").className = "step " + (tmOk ? "done" : (hrmOk ? "next" : "next"));
+    $("stepTm").querySelector(".mark").textContent = tmOk ? "✓" : "2";
+    $("stepTmText").innerHTML = tmOk
+      ? `${tm.name || "Treadmill"} connected<span class="sub">&nbsp;</span>`
+      : `Press the <b>Bluetooth</b> button on the treadmill console<span class="sub">It is only visible for about a minute</span>`;
+    $("stepGo").className = "step " + (tmOk ? "next" : "later");
+    $("waitHr").textContent = st.hr ? `Heart rate ${st.hr} bpm` : "";
+  } else if (state === "recording" || state === "paused") {
+    show("live");
+    const lv = st.live || {}, u = st.units;
+    $("hrValue").textContent = st.hr || "–";
+    $("hrValue").style.color = zcol;
+    $("hrPanel").style.borderColor = zcol;
+    $("hrLabel").textContent = !st.hr ? "bpm · no signal" : zone ? `bpm · zone ${zone}` : "bpm";
+    $("timeValue").textContent = fmtTime(lv.elapsed_s);
+    $("pausedNote").classList.toggle("hidden", state !== "paused");
+    $("speed").textContent = num(lv.speed, 1);
+    $("speedUnit").textContent = u.speed;
+    $("distance").textContent = num(lv.distance, 2);
+    $("distUnit").textContent = u.distance;
+    $("pace").textContent = lv.pace_s ? fmtTime(lv.pace_s) : "–";
+    $("paceUnit").textContent = u.pace;
+    $("incline").textContent = lv.incline_pct ? "· incline " + num(lv.incline_pct, 1) + "%" : "";
+    $("kcal").textContent = num(lv.kcal, 0);
+  } else if (state === "finished") {
+    show("finished");
+    const sm = st.summary || {}, u = st.units;
+    const saved = sm.workout_id != null;
+    $("finTitle").textContent = saved ? "Workout saved" : "Too short to save";
+    $("finReason").textContent = st.end_reason ? "(" + st.end_reason + ")" : "";
+    $("fTime").textContent = fmtTime(sm.moving_s);
+    $("fDist").textContent = num(sm.distance, 2);
+    $("fDistUnit").textContent = u.distance;
+    $("fKcal").textContent = num(sm.kcal, 0);
+    $("fHr").innerHTML = trio(sm.min_hr, sm.avg_hr, sm.max_hr, 0);
+    $("fSpeedLabel").textContent = `speed min / avg / max (${u.speed})`;
+    $("fSpeed").innerHTML = trio(sm.min_speed, sm.avg_speed, sm.max_speed, 1);
+    $("fPauses").textContent = sm.pauses == null ? "–" : sm.pauses;
+    const nas = st.nas;
+    $("nasLine").className = !nas.enabled ? "" : (nas.pending ? "pending" : "ok");
+    $("nasText").textContent = !nas.enabled || !saved ? ""
+      : nas.pending ? "Not on the NAS yet. Retrying every 10 minutes." : "✓ Copied to the NAS";
+    $("retryBtn").classList.toggle("hidden", !(nas.enabled && nas.pending));
+    $("discardBtn").classList.toggle("hidden", !saved);
+  }
+}
+
+async function act(action) {
+  try {
+    const r = await fetch("/action", { method: "POST", headers: { "Content-Type": "application/json" },
+                                       body: JSON.stringify({ action }) });
+    if (r.ok) render(await r.json());
+  } catch (e) { /* the WebSocket shows the outage */ }
+}
+
+/* Destructive buttons need a second tap within 4 s. */
+function armed(btn, label, armedLabel, action) {
+  let timer = null;
+  btn.addEventListener("click", () => {
+    if (btn.classList.contains("armed")) {
+      clearTimeout(timer); btn.classList.remove("armed"); btn.textContent = label; act(action);
+      return;
+    }
+    btn.classList.add("armed"); btn.textContent = armedLabel;
+    timer = setTimeout(() => { btn.classList.remove("armed"); btn.textContent = label; }, 4000);
+  });
+}
+armed($("endBtn"), "End", "Tap again to end", "end");
+armed($("discardBtn"), "Discard", "Tap again to delete", "discard");
+$("doneBtn").addEventListener("click", () => act("done"));
+$("retryBtn").addEventListener("click", () => act("retry_export"));
+
+let delay = 500;
+function connect() {
+  const ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
+  ws.onopen = () => { delay = 500; $("offline").classList.add("hidden"); };
+  ws.onmessage = (ev) => render(JSON.parse(ev.data));
+  ws.onclose = () => {
+    $("offline").classList.remove("hidden");
+    setTimeout(connect, delay);
+    delay = Math.min(delay * 2, 5000);
+  };
+}
+fetch("/state").then((r) => r.json()).then((st) => { if (!last) render(st); }).catch(() => {});
+connect();
+</script>
+</body>
+</html>

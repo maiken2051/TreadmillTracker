@@ -57,6 +57,9 @@ class App:
         self._export_again = False
         self._next_export_retry = 0.0  # a pending export from a previous run retries at once
         self.nas_pending = False
+        self.nas_error = ""
+        self.listeners: list[Callable[[], None]] = []  # the web server: "state changed"
+        self.connected: dict[Device, bool] = {d: False for d in Device}
         self.imperial = cfg.user.units == "imperial"
         self.recorder = Recorder(cfg.session, on_save=self._save, on_discard=self._discard,
                                  on_checkpoint=self._checkpoint, on_change=self._changed)
@@ -108,10 +111,14 @@ class App:
 
     def device_connected(self, t: float, device: Device, name: str = "") -> None:
         self.out(f"{_clock(t)} {device.value} connected {name}".rstrip())
+        self.connected[device] = True
+        if name:
+            self.recorder.device_names[device.value] = name
         self.recorder.device_connected(t, device)
 
     def device_disconnected(self, t: float, device: Device, name: str = "") -> None:
         self.out(f"{_clock(t)} {device.value} disconnected")
+        self.connected[device] = False
         if device is Device.HRM:
             self._hr = None
         self.recorder.device_disconnected(t, device)
@@ -138,6 +145,7 @@ class App:
         if self.state is not SessionState.IDLE and t - self._last_status >= self.status_every_s:
             self._last_status = t
             self.out(self.status_line(t))
+        self._notify()
 
     def note(self, t: float, address: str, char: str, data: bytes) -> None:
         """A raw notification (or value read) from either device."""
@@ -175,6 +183,95 @@ class App:
             parts.append("| " + " ".join(links))
         return "  ".join(parts)
 
+    # ------------------------------------------------------------------ the screen
+
+    def snapshot(self, t: float | None = None) -> dict:
+        """Everything the touchscreen shows, display-ready in the user's units (DESIGN §4.7).
+        Sent over the WebSocket at 1 Hz and on every change."""
+        t = time.time() if t is None else t
+        imperial = self.imperial
+        hrm = self.hrm
+        tm = self._tm
+        snap: dict = {
+            "state": self.state.value,
+            "clock": datetime.fromtimestamp(t).strftime("%H:%M"),
+            "units": {"speed": "mph" if imperial else "km/h", "distance": "mi" if imperial
+                      else "km", "pace": "/mi" if imperial else "/km"},
+            "hr": self._hr,
+            "hr_zone": hr_zone(self._hr, self.cfg.user.max_hr, self.cfg.user.hr_zones),
+            "hrm": {"connected": self.connected[Device.HRM],
+                    "name": self.recorder.device_names.get(Device.HRM.value, ""),
+                    "battery_pct": getattr(hrm, "battery_pct", None) if hrm else None},
+            "treadmill": {"connected": self.connected[Device.TREADMILL],
+                          "name": self.recorder.device_names.get(Device.TREADMILL.value, "")},
+            "nas": {"enabled": self.exporter is not None, "pending": self.nas_pending,
+                    "error": self.nas_error},
+            "end_reason": None,
+            "live": None,
+            "summary": None,
+        }
+        if tm is not None:
+            pace = (units.mps_to_min_per_mile(tm.speed_mps) if imperial
+                    else (1000 / tm.speed_mps / 60 if tm.speed_mps > 0 else None))
+            snap["live"] = {
+                "elapsed_s": tm.elapsed_s,
+                "speed": round(units.mps_to_mph(tm.speed_mps) if imperial
+                               else tm.speed_mps * 3.6, 1),
+                "distance": round(units.m_to_miles(tm.distance_m) if imperial
+                                  else tm.distance_m / 1000, 2),
+                "pace_s": round(pace * 60) if pace and pace < 60 else None,
+                "kcal": tm.kcal,
+                "incline_pct": self._incline,
+            }
+        if self.state is SessionState.FINISHED:
+            reason = self.recorder.machine.end_reason
+            snap["end_reason"] = reason.value if reason else None
+            session = self.recorder.session
+            if session is not None:
+                snap["summary"] = self._summary_view(session)
+        return snap
+
+    def _summary_view(self, session: Session) -> dict:
+        s = session.summary()
+        imperial = self.imperial
+
+        def speed(v):
+            if v is None:
+                return None
+            return round(units.mps_to_mph(v) if imperial else v * 3.6, 1)
+
+        return {
+            "workout_id": self.saved.get(id(session)),
+            "moving_s": int(s.moving_s),
+            "distance": round(units.m_to_miles(s.distance_m) if imperial
+                              else s.distance_m / 1000, 2),
+            "kcal": round(s.kcal),
+            "avg_hr": s.avg_hr, "max_hr": s.max_hr, "min_hr": s.min_hr,
+            "min_speed": speed(s.min_speed_mps), "avg_speed": speed(s.avg_speed_mps),
+            "max_speed": speed(s.max_speed_mps),
+            "pauses": s.pause_count,
+        }
+
+    def action(self, name: str, t: float | None = None) -> bool:
+        """A button on the screen. False for an unknown action."""
+        t = time.time() if t is None else t
+        if name == "end":
+            self.recorder.user_end(t)
+        elif name == "done":
+            self.recorder.user_done(t)
+        elif name == "discard":
+            self.recorder.user_discard(t)
+        elif name == "retry_export":
+            self.start_export()
+        else:
+            return False
+        self._notify()
+        return True
+
+    def _notify(self) -> None:
+        for listener in self.listeners:
+            listener()
+
     # ------------------------------------------------------------------ recorder callbacks
 
     def _changed(self, t: float, old: SessionState, new: SessionState) -> None:
@@ -182,6 +279,7 @@ class App:
         if new is SessionState.FINISHED and self.recorder.machine.end_reason is not None:
             reason = f" ({self.recorder.machine.end_reason.value})"
         self.out(f"{_clock(t)} {old.value} -> {new.value}{reason}")
+        self._notify()
         self.backlight.set(new is not SessionState.IDLE)
         if old is SessionState.IDLE:
             self.raw = []
@@ -250,6 +348,7 @@ class App:
 
     def _exported(self, result: ExportResult) -> None:
         self.nas_pending = not result.ok
+        self.nas_error = result.error
         self._next_export_retry = time.time() + RETRY_EVERY_S
         now = _clock(time.time())
         if result.ok:
@@ -257,6 +356,7 @@ class App:
         else:
             self.out(f"{now} nas: NOT copied, will retry every "
                      f"{RETRY_EVERY_S / 60:.0f} min ({result.error})")
+        self._notify()
 
     async def wait_export(self, timeout: float = 60.0) -> None:
         if self._export_task is not None and not self._export_task.done():
@@ -339,12 +439,10 @@ class App:
 
 
 def run(cfg: Config, replay: Path | None = None, speed: float = 1.0) -> int:
-    """`gymtracker run`: the app in the foreground, printing state changes and status."""
-    if replay is not None:
-        app = App(cfg, backlight=NullBacklight(),
-                  status_every_s=1.0 if speed <= 1 else speed)
-        asyncio.run(app.run_replay(replay, speed))
-        return 0
+    """`gymtracker run`: the app in the foreground, printing state changes and status, with
+    the touchscreen page on [web] port. A replay keeps serving the page after the capture
+    ends, until Ctrl-C, so the FINISHED screen can be looked at."""
+    from gymtracker.web.server import WebServer
 
     async def main() -> None:
         stop = asyncio.Event()
@@ -352,12 +450,39 @@ def run(cfg: Config, replay: Path | None = None, speed: float = 1.0) -> int:
         for sig in (signal.SIGINT, signal.SIGTERM):
             with contextlib.suppress(NotImplementedError):  # Windows
                 loop.add_signal_handler(sig, stop.set)
-        exporter = Exporter(cfg.storage.data_dir, cfg.export) if cfg.export.smb_mount else None
-        await App(cfg, exporter=exporter).run_ble(stop)
+        if replay is not None:
+            app = App(cfg, backlight=NullBacklight(),
+                      status_every_s=1.0 if speed <= 1 else speed)
+        else:
+            exporter = (Exporter(cfg.storage.data_dir, cfg.export) if cfg.export.smb_mount
+                        else None)
+            app = App(cfg, exporter=exporter)
+        # A replay is for testing on this machine: localhost only (no firewall prompt).
+        server = WebServer(app, cfg.web.port,
+                           host="127.0.0.1" if replay is not None else "0.0.0.0")
+        await server.start()
+        app.out(f"page: http://localhost:{cfg.web.port}/")
+        try:
+            if replay is not None:
+                await app.run_replay(replay, speed)
+                await stop.wait()
+            else:
+                await app.run_ble(stop)
+        finally:
+            await server.stop()
 
     with contextlib.suppress(KeyboardInterrupt):
         asyncio.run(main())
     return 0
+
+
+def hr_zone(hr: int | None, max_hr: int, zones: list[int]) -> int | None:
+    """1-5, or 0 below zone 1. With max_hr set, zones start at 50/60/70/80/90 % of it;
+    otherwise at the configured lower bounds."""
+    if not hr:
+        return None
+    bounds = [max_hr * p / 100 for p in (50, 60, 70, 80, 90)] if max_hr else zones
+    return sum(1 for b in bounds if hr >= b)
 
 
 def _clock(t: float) -> str:
