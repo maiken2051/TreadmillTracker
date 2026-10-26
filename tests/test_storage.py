@@ -340,3 +340,20 @@ def test_rebuild_orders_old_speeds(tmp_path):
     with Store(tmp_path / "rebuilt.db") as st:
         s = st.list()[0].summary
         assert s.max_speed_mps == s.avg_speed_mps
+
+
+def test_cli_delete(tmp_path, capsys):
+    from gymtracker.__main__ import main
+    with Library(tmp_path) as lib:
+        for i in range(3):
+            lib.add(*make_workout(start_t=1_760_000_000.0 + i * 86400))
+        lib.write_sheet()
+    assert main(["--data-dir", str(tmp_path), "delete", "1", "3"]) == 0
+    out = capsys.readouterr().out
+    assert out.count("deleted") >= 2
+    with Library(tmp_path) as lib:
+        assert [w.id for w in lib.store.list()] == [2]
+    assert len(list((tmp_path / "archive" / "deleted").rglob("*.json.gz"))) == 2
+    rows = load_workbook(tmp_path / "Workouts.xlsx")["Workouts"].max_row
+    assert rows == 2  # header + the one left
+    assert main(["--data-dir", str(tmp_path), "delete", "7"]) == 1

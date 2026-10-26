@@ -6,6 +6,7 @@
     gymtracker import-fit FOLDER --label NAME        import old .fit workouts
     gymtracker sheet [-o FILE]                       rebuild Workouts.xlsx
     gymtracker list                                  list stored workouts
+    gymtracker delete ID [ID ...]                    remove workouts (archive kept aside)
     gymtracker export                                copy everything to the NAS now
     gymtracker rebuild-db --out FILE [--reparse]     new database from the archive
 
@@ -51,6 +52,9 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("sheet", help="rebuild the spreadsheet")
     p.add_argument("-o", "--out", type=Path)
     sub.add_parser("list", help="list stored workouts")
+    p = sub.add_parser("delete", help="remove workouts from the database and spreadsheet "
+                       "(their archive files move to archive/deleted/)")
+    p.add_argument("ids", type=int, nargs="+", metavar="ID", help="ids from `gymtracker list`")
     sub.add_parser("export", help="copy the archive, spreadsheet and database to the NAS")
     p = sub.add_parser("rebuild-db", help="build a new database from the archive")
     p.add_argument("--out", type=Path, required=True, help="new database file (must not exist)")
@@ -84,6 +88,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "list":
         return _list(cfg)
+    if args.command == "delete":
+        return _delete(cfg, args.ids)
     if args.command == "export":
         return _export(cfg)
     if args.command == "rebuild-db":
@@ -134,13 +140,36 @@ def _list(cfg: Config) -> int:
     imperial = cfg.user.units == "imperial"
     with _library(cfg) as lib:
         for w in lib.store.list():
-            s = w.summary
-            dist = (f"{units.m_to_miles(s.distance_m):5.2f} mi" if imperial
-                    else f"{s.distance_m / 1000:5.2f} km")
-            moving = int(s.moving_s)
-            print(f"{w.id:4}  {w.start_local:%Y-%m-%d %H:%M}  {moving // 60:3}:{moving % 60:02d}"
-                  f"  {dist}  HR {s.avg_hr or '-':>3}  {w.source}")
+            print(_line(w, imperial))
     return 0
+
+
+def _line(w, imperial: bool) -> str:
+    s = w.summary
+    dist = (f"{units.m_to_miles(s.distance_m):5.2f} mi" if imperial
+            else f"{s.distance_m / 1000:5.2f} km")
+    moving = int(s.moving_s)
+    return (f"{w.id:4}  {w.start_local:%Y-%m-%d %H:%M}  {moving // 60:3}:{moving % 60:02d}"
+            f"  {dist}  HR {s.avg_hr or '-':>3}  {w.source}")
+
+
+def _delete(cfg: Config, ids: list[int]) -> int:
+    """Run `gymtracker export` afterwards (or let the app's next copy do it) to update the
+    NAS; its copy of each archive file moves to archive/deleted/ there too."""
+    imperial = cfg.user.units == "imperial"
+    missing = 0
+    with _library(cfg) as lib:
+        for workout_id in ids:
+            w = lib.store.get(workout_id)
+            if w is None:
+                print(f"{workout_id:4}  no such workout")
+                missing += 1
+                continue
+            lib.delete(workout_id)
+            print(f"{_line(w, imperial)}  deleted")
+        lib.write_sheet()
+    print("archive files moved to archive/deleted/; spreadsheet rebuilt")
+    return 1 if missing else 0
 
 
 def _export(cfg: Config) -> int:
