@@ -428,7 +428,7 @@ class App:
         self.treadmill_client = clients[Device.TREADMILL] = TreadmillClient(
             self.treadmill, self.treadmill_state, **common)
         self.open()
-        self.out(f"{_clock(time.time())} waiting for the strap or the treadmill "
+        self.out(f"{_clock(time.time())} waiting for the treadmill "
                  f"(data in {self.data_dir})")
         try:
             while not stop.is_set():

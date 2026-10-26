@@ -1,6 +1,6 @@
 # systemd user service: ~/.config/systemd/user/gymtracker.service (install.sh puts it there).
 # Lingering (loginctl enable-linger) starts it at boot, before anyone logs in.
-#   journalctl --user -u gymtracker -f     follow the log
+#   journalctl --user-unit gymtracker -f   follow the log
 #   systemctl --user stop gymtracker       before running `gymtracker run` by hand
 [Unit]
 Description=Gym Tracker: treadmill and heart-rate recorder, touchscreen page on :8080

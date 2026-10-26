@@ -86,7 +86,7 @@ systemctl --user enable -q gymtracker
 systemctl --user restart gymtracker
 sleep 3
 curl -sf -m 5 http://127.0.0.1:8080/healthz >/dev/null && echo "  running: http://$(hostname):8080/" \
-  || echo "  NOT answering yet; see: journalctl --user -u gymtracker -n 50"
+  || echo "  NOT answering yet; see: journalctl --user-unit gymtracker -n 50"
 
 say "done"
 echo "The kiosk page starts at the next login or reboot (or run ~/.local/bin/gymtracker-kiosk &)."
