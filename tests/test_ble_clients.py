@@ -217,6 +217,33 @@ def test_hrm_silence_watchdog_reconnects(monkeypatch):
     assert [e[0] for e in log if e[0] != "raw"] == ["connected", "disconnected"]
 
 
+def test_hrm_strap_off_the_arm_is_not_reconnected_again(monkeypatch):
+    # NAS test: the strap kept accepting connections but sent nothing, and the watchdog
+    # reconnected every 20 s, lighting its LED each time.
+    monkeypatch.setattr(hrm_mod, "SILENCE_S", 0.0)
+
+    async def go():
+        ev = Events()
+        c = make_hrm(ev)
+        c.offer(sighting())
+        await settle()
+        assert not c.connected  # first silence: one reconnect
+        c.offer(sighting())
+        await settle()
+        assert c.connected  # still silent: stays connected
+        for _ in range(3):
+            await asyncio.sleep(0)
+        assert c.connected
+        FakeBleakClient.instances[-1].notify(HR_MEASUREMENT_UUID, b"\x00\x5b")
+        assert not c._silence_retried  # worn again: the watchdog is armed again
+        await c.close()
+        return ev.log
+
+    log = asyncio.run(go())
+    assert [e[0] for e in log if e[0] not in ("raw", "hr")] == [
+        "connected", "disconnected", "connected", "disconnected"]  # the last is close()
+
+
 def test_treadmill_reads_state_after_connect_and_never_writes():
     async def go():
         ev = Events()

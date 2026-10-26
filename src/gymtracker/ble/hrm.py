@@ -84,13 +84,19 @@ def parse_battery_level(data: bytes) -> int | None:
     return data[0]
 
 
-SILENCE_S = 20.0  # connected but quiet this long -> reconnect (seen at 20 % battery)
+SILENCE_S = 20.0  # connected but quiet this long -> reconnect once (seen at 20 % battery)
 BATTERY_EVERY_S = 300.0
 
 
 class HrmClient(Link):
     """Subscribes to Heart Rate Measurement and polls Battery Level (read-only on the COROS
-    strap). Silences under ~15 s are normal (strap adjusted, brief loss of contact)."""
+    strap). Silences under ~15 s are normal (strap adjusted, brief loss of contact).
+
+    A longer silence gets one reconnect, for a link that BlueZ thinks is up but is dead. If
+    the new link is silent too, the strap is off the arm: it keeps advertising and accepting
+    connections for ~10 min but sends nothing (NAS test, 2026-10-25), and every reconnect
+    lights its LED and wakes the app. So stay connected and wait; the next notification
+    re-arms the reconnect, and the strap drops the link itself when it goes to sleep."""
 
     def __init__(self, on_sample: Callable[[float, HrSample], None], **kwargs) -> None:
         super().__init__(**kwargs)
@@ -99,6 +105,7 @@ class HrmClient(Link):
         self.on_sample = on_sample
         self.battery_pct: int | None = None
         self._last_note = 0.0  # monotonic
+        self._silence_retried = False  # reconnected for silence, no notification since
 
     async def setup(self, client) -> None:
         self._last_note = time.monotonic()
@@ -107,6 +114,7 @@ class HrmClient(Link):
     def handle(self, t: float, char: str, data: bytes) -> None:
         if char == HR_MEASUREMENT_UUID:
             self._last_note = time.monotonic()
+            self._silence_retried = False
             sample = parse_hr_measurement(data)
             if sample is not None:
                 self.on_sample(t, sample)
@@ -129,8 +137,14 @@ class HrmClient(Link):
                 except Exception as e:
                     log.warning("hrm: battery read failed: %r", e)
             if now - self._last_note >= SILENCE_S:
-                log.warning("hrm: connected but silent for %.0f s; reconnecting",
-                            now - self._last_note)
-                await self.disconnect()
-                return
+                if self._silence_retried:
+                    log.info("hrm: still silent after reconnecting; strap not worn? "
+                             "staying connected")
+                    self._last_note = float("inf")  # no more checks until it speaks
+                else:
+                    log.warning("hrm: connected but silent for %.0f s; reconnecting",
+                                now - self._last_note)
+                    self._silence_retried = True
+                    await self.disconnect()
+                    return
             await asyncio.sleep(1.0)

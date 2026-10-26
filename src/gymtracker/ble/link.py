@@ -3,7 +3,8 @@
 The app offers each sighting from the scanner to the matching client; a client that is not
 connected connects to it, unless it is backing off after a failure (1 s doubling to 30 s).
 Reconnecting is therefore driven by sightings, which suits both devices: the treadmill has a
-new address every time, and the strap stops advertising when it is not worn.
+new address every time, and the strap stops advertising when it sleeps (~10 min after it
+comes off the arm; until then it still accepts connections, see HrmClient).
 
 Two BlueZ quirks from Phase 0 are handled here: the disconnect callback can fire while
 connect() is still in progress (BlueZ retries), and is ignored until connect() returns.
