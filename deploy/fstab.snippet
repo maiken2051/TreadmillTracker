@@ -3,7 +3,8 @@
 #
 # A systemd automount: nothing mounts at boot (noauto, nofail), so an offline NAS never
 # blocks boot or the app. The share mounts on first access and unmounts after 5 idle
-# minutes. A space in the path is written \040.
+# minutes. echo_interval=5 notices a dead NAS in ~30 s instead of ~3 min. A space in the
+# path is written \040.
 #
 # The share allows guest access (no account); for a share that needs a login, replace
 # guest with credentials=/etc/samba/creds-gymtracker (root, mode 600; username=/password=
