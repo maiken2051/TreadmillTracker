@@ -162,7 +162,7 @@ def test_app_retries_a_pending_export(tmp_path):
 
 MOUNTS = r"""/dev/mmcblk0p2 / ext4 rw,noatime 0 0
 systemd-1 /mnt/nas-workouts autofs rw,relatime,fd=82 0 0
-//kabane/Media/Gym\040Tracker /mnt/nas-workouts cifs rw,relatime,vers=3.1.1 0 0
+//nas/share/Gym\040Tracker /mnt/nas-workouts cifs rw,relatime,vers=3.1.1 0 0
 """
 
 

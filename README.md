@@ -134,7 +134,7 @@ sh ~/gymtracker/app/deploy/install.sh
 `install.sh` is safe to run again. It installs the app into `~/venv`, runs it as a systemd
 **user** service that starts at boot, opens the page full-screen at login (Chromium kiosk),
 lets the app switch the backlight (udev rule), mounts the network share on demand
-(`deploy/fstab.snippet`: edit the share path first), turns on automatic updates, and replaces
+(give it as `GT_NAS_SHARE='//server/share/folder' sh .../install.sh`), turns on automatic updates, and replaces
 their 04:00 reboot with one that waits until no workout is running. `GT_DISPLAY=no` skips
 the Waveshare-specific display step.
 

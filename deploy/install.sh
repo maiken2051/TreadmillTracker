@@ -5,6 +5,8 @@
 #
 # Assumes Raspberry Pi OS (Debian 13) with the desktop, auto-login, and sudo. The display
 # section matches the Waveshare 7" DSI (H) panel mounted upside down; GT_DISPLAY=no skips it.
+# GT_NAS_SHARE='//server/share/folder' sets up the copy to a network share (guest access;
+# see deploy/fstab.snippet for a share that needs a login).
 set -eu
 
 APP=$(cd "$(dirname "$0")/.." && pwd)
@@ -46,15 +48,23 @@ sudo systemctl enable --now -q gymtracker-reboot.timer
 echo "  next window: $(systemctl show gymtracker-reboot.timer -p NextElapseUSecRealtime --value)"
 
 say "NAS share (automount at /mnt/nas-workouts)"
-if ! grep -q "/mnt/nas-workouts" /etc/fstab; then
+if grep -q "/mnt/nas-workouts" /etc/fstab; then
+  echo "  already in /etc/fstab"
+elif [ -n "${GT_NAS_SHARE:-}" ]; then
+  # fstab writes a space as \040; doubled here because sed's replacement eats one backslash
+  share=$(printf '%s' "$GT_NAS_SHARE" | sed 's/ /\\\\040/g')
   sudo cp -p /etc/fstab "/etc/fstab.bak-$(date +%Y%m%d)"
-  { echo; cat "$DEPLOY/fstab.snippet"; } | sudo tee -a /etc/fstab >/dev/null
-  echo "  added to /etc/fstab"
+  { echo; sed "s|@SHARE@|$share|" "$DEPLOY/fstab.snippet"; } | sudo tee -a /etc/fstab >/dev/null
+  echo "  added $GT_NAS_SHARE to /etc/fstab"
+else
+  echo "  skipped: set GT_NAS_SHARE='//server/share/folder' to copy workouts to a share"
 fi
-sudo mkdir -p /mnt/nas-workouts
-sudo systemctl daemon-reload
-sudo systemctl start "$(systemd-escape -p --suffix=automount /mnt/nas-workouts)"
-echo "  ok"
+if grep -q "/mnt/nas-workouts" /etc/fstab; then
+  sudo mkdir -p /mnt/nas-workouts
+  sudo systemctl daemon-reload
+  sudo systemctl start "$(systemd-escape -p --suffix=automount /mnt/nas-workouts)"
+  echo "  automount active"
+fi
 
 if [ "${GT_DISPLAY:-yes}" != no ]; then
   say "display: Waveshare 7\" DSI (H), rotated 180"

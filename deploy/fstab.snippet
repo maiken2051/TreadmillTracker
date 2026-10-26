@@ -1,5 +1,6 @@
-# GymTracker NAS share: append to /etc/fstab, then
-#   sudo mkdir -p /mnt/nas-workouts && sudo systemctl daemon-reload
+# GymTracker NAS share. install.sh appends this to /etc/fstab with @SHARE@ replaced by
+# GT_NAS_SHARE (e.g. GT_NAS_SHARE='//server/share/Gym Tracker'); by hand: replace it,
+# append, then  sudo mkdir -p /mnt/nas-workouts && sudo systemctl daemon-reload
 #
 # A systemd automount: nothing mounts at boot (noauto, nofail), so an offline NAS never
 # blocks boot or the app. The share mounts on first access and unmounts after 5 idle
@@ -9,4 +10,4 @@
 # The share allows guest access (no account); for a share that needs a login, replace
 # guest with credentials=/etc/samba/creds-gymtracker (root, mode 600; username=/password=
 # lines), never committed.
-//kabane/Media/Gym\040Tracker  /mnt/nas-workouts  cifs  guest,uid=1000,gid=1000,file_mode=0644,dir_mode=0755,iocharset=utf8,soft,echo_interval=5,noauto,nofail,_netdev,x-systemd.automount,x-systemd.idle-timeout=300,x-systemd.mount-timeout=20  0  0
+@SHARE@  /mnt/nas-workouts  cifs  guest,uid=1000,gid=1000,file_mode=0644,dir_mode=0755,iocharset=utf8,soft,echo_interval=5,noauto,nofail,_netdev,x-systemd.automount,x-systemd.idle-timeout=300,x-systemd.mount-timeout=20  0  0
