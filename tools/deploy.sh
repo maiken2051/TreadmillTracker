@@ -14,7 +14,7 @@ git archive HEAD | ssh "$HOST" '
   tar -x -C ~/gymtracker/app.new
   rm -rf ~/gymtracker/app && mv ~/gymtracker/app.new ~/gymtracker/app
   ~/venv/bin/pip install -q --upgrade ~/gymtracker/app 2>&1 | grep -v "notice" || true
-  install -m 755 ~/gymtracker/app/deploy/kiosk.sh ~/.local/bin/gymtracker-kiosk
+  install -D -m 755 ~/gymtracker/app/deploy/kiosk.sh ~/.local/bin/gymtracker-kiosk
   if systemctl --user is-enabled -q gymtracker 2>/dev/null; then
     setsid nohup sh ~/gymtracker/app/deploy/restart-when-idle.sh >/dev/null 2>&1 < /dev/null &
     echo "installed; the app restarts as soon as no workout is running"
